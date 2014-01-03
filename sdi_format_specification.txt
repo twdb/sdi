@@ -155,3 +155,24 @@ Offset+2 NumPnts*2     Array[0..NumPnts - 1] of Word
 
 End of the record.  Records continue sequentially til end of file.
 
+------------------------------
+Email Excerpt from John Dunbar
+------------------------------
+
+From:    "Dunbar, John" <John_Dunbar@baylor.edu>
+To:  "Jordan Furnans" <Jordan.Furnans@twdb.state.tx.us>
+Date:    7/2/2007 9:49 AM
+Subject:   RE: Re: update on LBJ, Inks, and Marble Falls
+Attachments:   sdidcon.f; types.pas; GetHeader.pas; GetTrace.pas; ShiftBits.pas
+
+Jordan,
+ 
+As of 9:00 AM LCRA's web site still describes a boating ban on LBJ and indicates it will continue through the 4th.  Heidi and I will stay on standby for the possibility that it may be lifted on Thursday.  It looks likely that the project may slide yet again to next week.
+ 
+See the attached files that read SDI bins.  The *.f file is the main for a little deconvolution code I wrote to process some extremely shallow water data we collected several years ago.  Since then the format has changed substantially.  It is likely that it will not run in its present form, because of these changes, but you can see what I was doing.  The *.pas are routines are from Depthpic and they do work, but the i/o code is spread over several routines.  If you do not use Pascal, some translation will be required. The file named "types.pas" is a code segment that defines the file and trace headers.  A Pascal type is analogous to a C structure.  Then I have separate routines that read the file header, and trace header and data.  The calls to "BlockRead" in the Pascal code are just binary reads of a given number of bytes.  The ShiftBits.pas routine modifies the raw trace values first to 32-bit floats and then to bytes for display.  Because there is not a large dynamic range that can be used in a graphical display, I store only a one-byte version of the data.  If you are going to do further processing, you would want to store the RealValue.  Note that the 200 kHz UNIPOL traces are written in a different format than the rest of the traces and have to be treated differently.
+ 
+John
+
+
+
+
