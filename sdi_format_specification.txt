@@ -1,0 +1,157 @@
+SdiDepth and SmartSurvey .Bin file format              3:56 PM 2/10/2006
+
+Specialty Devices, Inc.
+2905 Capital
+Wylie, TX
+
+972 429-7240
+
+
+All numbers are in standard byte reversed PC format.
+All Integers are 2's complement.
+
+Byte     = unsigned 8 bits           0..255
+Char     = Byte
+ShortInt = signed 8 bit integer      -128..127
+Word     = unsigned 16 bit integer   0..65535 
+SmallInt = signed 16 bit integer     -32768..32767
+Longint  = signed 32 bit integer     ?2147483648..2147483647
+Single	 = 4 byte IEEE real          1.5 x 10^?45 .. 3.4 x 10^38
+                                     7?8   significant digits
+Double	 = 8 byte IEEE real          5.0 x 10^?324 .. 1.7 x 10^308
+                                     15?16 significant digits
+Int10    = Smallint                  Divide by 10 to get a floating point number.
+                                     A value of 125 = 12.5 
+Int100   = Smallint                  Divide by 100 to get a floating point number.
+                                     A value of 125 = 1.25 
+
+
+Offset Size        File Header
+
+  0   8 Filename       array[1..8] of Char  Original printable base filename.  All 8 chars
+                                            are used.  Formed using date and file number
+                                            with YYMMDDFF where FF = '01'..'99','9A'..'ZZ'
+  8   1 Cr             Char constant 13H
+  9   1 Lf             Char constant 10H
+ 10   1 Version        Byte                 1st nibble = major, 2nd = minor
+                                            43H = version 4.3
+ 11   1 ResCm          Byte                 Sample resolution in centimeters.  Used in
+                                            versions before 1.6, now zero. Superseeded
+                                            by the Rate field
+
+
+                   Record Header
+
+  0   2 Offset         Word                 DataPos = File position (after reading Offset)
+                                            + Offset.  After reading the Record Header,
+                                            seek to the DataPos for forward compatibility
+                                            with later versions.
+  2   4 TraceNum       Longint              Sequential record number within this file,
+                                            starting at 1
+  6   1 Units          Byte                 0 = feet, 1 = meters, 2 = fathoms.  Fields
+                                            that use Units are noted
+  7   1 Spdosunits     Byte                 0 = feet, 1 = meters. Used by Spdos only
+  8   2 Spdos          Smallint             In Units per second
+ 10   2 Minwindow10    Int10                Top of windowed depth the user viewed while
+                                            recording data.  In Units.  See MinPntRl
+ 12   2 Maxwindow10    Int10                Bottom of windowed depth the user viewed
+                                            while recording data.  In Units.  See 
+                                            MinPntRl and NumPntRl
+ 14   2 Draft100       Int100               Water line to transducer, in Units.
+                                            Versions >= 4.2 should use Draft
+ 16   2 Tide100        Int100               Mean water line - geoid, in Units.
+                                            Versions >= 4.2 should use Tide
+ 18   2 Heave          Smallint             In centimeters
+ 20   2 Range          Int10                Maximum depth displayable, In Units.
+                                            I.e. transducer range + Draft
+ 22   4 DepthRl        Single               In meters below mean water level.
+                                            In versions <= 4.1 was below geoid
+ 26   4 MinPntRl       Single               Index into zero based data array of window top
+                                            - can start, end at fraction
+ 30   4 NumPntRl       Single               Number of data points in window - can start,
+                                            end at fraction
+ 34   2 BlankingPnt    Smallint             Search for bottom must start after this
+                                            data point
+ 36   2 DepthPnt       Smallint             Index of DepthRl in data array
+ 38   2 RangePnt       Smallint             Search for bottom will not go past this point
+ 40   2 NumPnts        Smallint             Number of 16 bit data points in the array.
+                                            RangePnt + 2 m ( 1 m after ver 3.1?)
+ 42   4 Clock          Longint              4 byte PC clock tick count since midnight.
+                                            1193180/65536 ticks per second.
+ 46   1 Hour           Byte                 The next four fields are a conversion of
+                                            above Clock field.
+ 47   1 Minute         Byte
+ 48   1 Second         Byte
+ 49   1 Sec100         Byte                 In hundredths of a second.
+ 50   4 Rate           Longint              A/D samples per second. In versions <= 1.6
+                                            this field was not present, set to 25000
+ 54   4 kHz            Single               Transmit pulse rate used. In versions <= 1.6
+                                            this field was not present, set to 200
+ 58   1 EventLen       Byte                 Zero to a maximum of 31.  If zero, the next
+                                            field is not present.
+ 59   X Event          array[1..EventLen] of Char   This is as if EventLen is a ShortString
+                                            with the extra chars truncated.  The first
+                                            event will have 'Recording ' plus the Filename
+                                            field.  Stores HyPack event numbers as well as
+                                            user commemts.
+
+How much of the rest of the record header is present depends on the version number
+
+                   New with version 3.0
+X+59  8 Longitude      Double               WGS84
+X+67  8 Latitude       Double               Is set to 100 or above if invalid
+
+                   New with version 3.1
+X+75  1 Transducer     Byte                 1..5 in order of frequency (bottom to
+                                            sub-bottom). For example: 1 = 200kHz,
+                                            5 = 3.5kHz.  If an earlier version is being
+                                            read, Transducer should be inferred from kHz
+X+76  1 Options        Byte                 1=Bipolar: ver <= 1.6 = 0, 2= Latitude has Y,
+                                            Longitude has X: ver < 3.3, 4=Rtk mode
+X+77  1 DataOffset     Byte                 This is normally zero or one.  Indicates
+                                            sampling of the start of the output pulse was
+                                            delayed by this many samples. 
+
+                   New with 3.3
+X+78  8 X              Double               UTM
+X+86  8 Y              Double
+
+                   New with 4.0
+X+94  1 Cycles         Byte                 Commanded In the output pulse train.  Results
+                                            may vary, depending on the hardware.
+X+95  1 Volts          Byte                 Max volts 0=10, 1=5, 2=2.5, 3=1.25 volts.
+                                            Min depends on Bipolar bit in Options.
+X+96  1 Power          Byte                 0..3 or 0..7
+X+97  1 Gain           Byte                 0..7
+X+98  2 PrevOffset     Word                 The size of the previous record in bytes.
+                                            Not currently utilized. 
+
+                   New with 4.2
+X+100 4 AntennaEl      Single               Meters above the geoid.  As from Hgt field
+                                            of NMEA GGA log or calculated from HyPack
+X+104 4 AntennaHt      Single               Meters above the water line.  Set by the user.
+X+108 4 Draft          Single               Meters
+X+112 4 Tide           Single               Meters
+
+                   New with 4.3
+X+116 1 GpsMode        ShortInt             From HyPack or NMEA GGA, PRTKA or GLL logs.
+                                            -1 if not received, timed out or field = ''
+
+X+117 4 HDop           Single               Horizontal Dilution Of Precision in meters.
+                                            -1 if invalid
+
+End of the record header, seek to the DataPos for forward compatibility!!
+See the Offset field.
+
+                   A/D Data
+
+Offset+2 NumPnts*2     Array[0..NumPnts - 1] of Word
+                                           Check bit zero of Options to see if the data
+                                           is bipolar.  If it is not set, the data is
+                                           unipolar in unsigned words 0..65535  If bit
+                                           zero is set, some conversion is needed.
+                                           Flip the high bit (bit 15) of each word
+                                           to get signed bipolar smallints -32768..32767
+
+End of the record.  Records continue sequentially til end of file.
+
