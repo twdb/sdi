@@ -4,6 +4,7 @@ import numpy as np
 import struct
 from StringIO import StringIO
 
+
 class Dataset(object):
     def __init__(self, filename):
         self.filename = filename
@@ -15,10 +16,10 @@ class Dataset(object):
         self.survey_line_number = struct.unpack('<8s', data[:8])[0]
         self.version = _version(data[10])
         if self.version <= 3.2:
-            raise NotImplementedError, 'Reading of file formats <= 3.2 Not Supported, File Version=' + str(version)
+            raise NotImplementedError('Reading of file formats <= 3.2 Not Supported, File Version=' + str(self.version))
 
-        self.resolution_cm = int(ord(data[11])) 
-        self.date = datetime.strptime(self.survey_line_number[:6], '%y%m%d').date()  
+        self.resolution_cm = int(ord(data[11]))
+        self.date = datetime.strptime(self.survey_line_number[:6], '%y%m%d').date()
 
         dtype, extended_dtype = _dtype(self.version)
         trace_metadata = {}
@@ -36,19 +37,20 @@ class Dataset(object):
                 trace_metadata[field].append(struct.unpack(fmt, fid.read(size))[0])
 
             size = trace_metadata['event_len'][-1]
-            trace_metadata['event'].append(struct.unpack('<'+str(size)+'s',fid.read(size))[0])
+            trace_metadata['event'].append(struct.unpack('<' + str(size) + 's',fid.read(size))[0])
 
             for field, fmt in extended_dtype:
                 size = struct.calcsize(fmt)
                 trace_metadata[field].append(struct.unpack(fmt, fid.read(size))[0])
 
-            fid.seek(npos + trace_metadata['offset'][-1]+2)
+            fid.seek(npos + trace_metadata['offset'][-1] + 2)
             size = trace_metadata['num_pnts'][-1]
-            trace_intensity.append(np.array(struct.unpack('<' + str(size)+ 'H',fid.read(size*2)))) 
+            trace_intensity.append(np.array(struct.unpack('<' + str(size) + 'H',fid.read(size * 2))))
             npos = int(fid.tell())
 
         self.trace_metadata = trace_metadata
         self.trace_intensity = trace_intensity
+
 
 def _version(version_hex):
     return float(str(ord(version_hex) >> 4) + '.' + str(ord(version_hex) & 0xF))
