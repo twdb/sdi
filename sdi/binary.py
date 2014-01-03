@@ -1,118 +1,171 @@
-
 from datetime import datetime
-import numpy as np
 import struct
 from StringIO import StringIO
 
+import numpy as np
 
 class Dataset(object):
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self, filepath):
+        self.filepath = filepath
 
-        with open(filename, 'rb') as fid:
-            data = fid.read()
+    def parse(self):
+        with open(self.filepath, 'rb') as f:
+            data = f.read()
 
         fid = StringIO(data)
-        self.survey_line_number = struct.unpack('<8s', data[:8])[0]
-        self.version = _version(data[10])
-        if self.version <= 3.2:
-            raise NotImplementedError('Reading of file formats <= 3.2 Not Supported, File Version=' + str(self.version))
+        data_length = len(data)
 
-        self.resolution_cm = int(ord(data[11]))
+        header = self.parse_file_header(fid)
+
+        self.version = header['version']
+        self.resolution_cm = header['resolution_cm']
+        self.survey_line_number = header['filename']
         self.date = datetime.strptime(self.survey_line_number[:6], '%y%m%d').date()
 
-        dtype, extended_dtype = _dtype(self.version)
-        trace_metadata = {}
+        self.parse_records(fid, data_length)
+
+    def parse_records(self, fid, data_length):
+        pre_struct, post_struct = self.record_struct()
+
         # intitialize trace lists
-        for field, fmt in dtype + extended_dtype:
-            trace_metadata[field] = []
+        trace_metadata = dict([
+            [name, []] for name, fmt, dtype in pre_struct + post_struct
+        ])
 
         trace_metadata['event'] = []
         trace_intensity = []
+
+        pre_fmt = '<' + ''.join([fmt for name, fmt, dtype in pre_struct])
+        pre_names = [name for name, fmt, dtype in pre_struct]
+        pre_size = struct.calcsize(pre_fmt)
+
+        post_fmt = '<' + ''.join([fmt for name, fmt, dtype in post_struct])
+        post_size = struct.calcsize(post_fmt)
+        post_names = [name for name, fmt, dtype in post_struct]
+
         npos = 12
         fid.seek(npos)
-        while npos<len(data):
-            for field, fmt in dtype:
-                size = struct.calcsize(fmt)
-                trace_metadata[field].append(struct.unpack(fmt, fid.read(size))[0])
 
-            size = trace_metadata['event_len'][-1]
-            trace_metadata['event'].append(struct.unpack('<' + str(size) + 's',fid.read(size))[0])
+        while npos < data_length:
+            pre_record = struct.unpack(pre_fmt, fid.read(pre_size))
+            pre_dict = dict(zip(pre_names, pre_record))
 
-            for field, fmt in extended_dtype:
-                size = struct.calcsize(fmt)
-                trace_metadata[field].append(struct.unpack(fmt, fid.read(size))[0])
+            for key, value in pre_dict.iteritems():
+                trace_metadata[key].append(value)
 
-            fid.seek(npos + trace_metadata['offset'][-1] + 2)
-            size = trace_metadata['num_pnts'][-1]
-            trace_intensity.append(np.array(struct.unpack('<' + str(size) + 'H',fid.read(size * 2))))
+            size = pre_dict['event_len']
+            if size > 0:
+                event = struct.unpack('<' + str(size) + 's', fid.read(size))[0]
+            else:
+                event = ''
+            trace_metadata['event'].append(event)
+
+            post_record = struct.unpack(post_fmt, fid.read(post_size))
+            post_dict = dict(zip(post_names, post_record))
+            for key, value in post_dict.iteritems():
+                trace_metadata[key].append(value)
+
+            fid.seek(npos + pre_dict['offset'] + 2)
+            size = pre_dict['num_pnts']
+            trace_intensity.append(struct.unpack('<' + str(size) + 'H', fid.read(size * 2)))
             npos = int(fid.tell())
 
-        self.trace_metadata = trace_metadata
         self.trace_intensity = trace_intensity
 
+        for key, value, dtype in pre_struct + post_struct:
+            trace_metadata[key] = np.array(trace_metadata[key], dtype=dtype)
 
-def _version(version_hex):
-    return float(str(ord(version_hex) >> 4) + '.' + str(ord(version_hex) & 0xF))
+        self.trace_metadata = trace_metadata
 
+    def parse_file_header(self, f):
+        """
+        Reads in file header information. Based on the specification:
+            Offset Size          File Header
 
-def _dtype(version):
-    dtype = [
-        ('offset', '<H'),
-        ('trace_num', '<l'),
-        ('units', '<B'),
-        ('spdos_units', '<B'),
-        ('spdos', '<h'),
-        ('min_window10', '<h'),
-        ('max_window10', '<h'),
-        ('draft100', '<h'),
-        ('tide100', '<h'),
-        ('heave_cm', '<h'),
-        ('display_range', '<h'),
-        ('depth_r1', '<f'),
-        ('min_pnt_r1', '<f'),
-        ('num_pnt_r1', '<f'),
-        ('blanking_pnt', '<h'),
-        ('depth_pnt','<h'),
-        ('range_pnt','<h'),
-        ('num_pnts','<h'),
-        ('clock', '<l'),
-        ('hour', '<B'),
-        ('min', '<B'),
-        ('sec', '<B'),
-        ('sec100', '<B'),
-        ('rate', '<l'),
-        ('kHz', '<f'),
-        ('event_len', '<B'),
-    ]
+            0   8 Filename       array[1..8] of Char  Original printable base filename.  All 8 chars
+                                                      are used.  Formed using date and file number
+                                                      with YYMMDDFF where FF = '01'..'99','9A'..'ZZ'
+            8   1 Cr             Char constant 13H
+            9   1 Lf             Char constant 10H
+           10   1 Version        Byte                 1st nibble = major, 2nd = minor
+                                                      43H = version 4.3
+           11   1 ResCm          Byte                 Sample resolution in centimeters.  Used in
+                                                      versions before 1.6, now zero. Superseeded
+                                                      by the Rate field
+        """
+        f.seek(0)
 
-    extended_dtype = [
-        ('latitude', '<2d'),
-        ('longitude', '<2d'),
-        ('transducer', '<B'),
-        ('options', '<B'),
-        ('data_offset', '<B'),
-    ]
+        filename, cr, lf, version_byte, resolution_cm = struct.unpack('<8s2cBB', f.read(12))
+        major_version = version_byte >> 4
+        minor_version = version_byte & 0xF
 
-    if version >= 3.3:
-        extended_dtype.append(('utm_x', '<2d'))
-        extended_dtype.append(('utm_y', '<2d'))
+        version = '%s.%s' % (major_version, minor_version)
+        if version <= '3.2':
+            raise NotImplementedError('Reading of file formats <= 3.2 Not Supported, File Version=' + str(version))
 
-    if version >= 4.0:
-        extended_dtype.append(('cycles', '<B'))
-        extended_dtype.append(('volts', '<B'))
-        extended_dtype.append(('power', '<B'))
-        extended_dtype.append(('gain', '<B'))
-        extended_dtype.append(('previous_offset', '<H'))
+        return {
+            'filename': filename,
+            'version': version,
+            'resolution_cm': resolution_cm,
+        }
 
-    if version >= 4.2:
-        extended_dtype.append(('antenna_e1', '<4f'))
-        extended_dtype.append(('antenna_ht', '<4f'))
-        extended_dtype.append(('draft', '<4f'))
-        extended_dtype.append(('tide', '<4f'))
+    def record_struct(self):
+        pre_struct = [
+            ('offset', 'H', np.int),
+            ('trace_num', 'l', np.int),
+            ('units', 'B', np.int),
+            ('spdos_units', 'B', np.int),
+            ('spdos', 'h', np.int),
+            ('min_window10', 'h', np.int),
+            ('max_window10', 'h', np.int),
+            ('draft100', 'h', np.int),
+            ('tide100', 'h', np.int),
+            ('heave_cm', 'h', np.int),
+            ('display_range', 'h', np.int),
+            ('depth_r1', 'f', np.float),
+            ('min_pnt_r1', 'f', np.float),
+            ('num_pnt_r1', 'f', np.float),
+            ('blanking_pnt', 'h', np.int),
+            ('depth_pnt','h', np.int),
+            ('range_pnt','h', np.int),
+            ('num_pnts','h', np.int),
+            ('clock', 'l', np.int),
+            ('hour', 'B', np.int),
+            ('min', 'B', np.int),
+            ('sec', 'B', np.int),
+            ('sec100', 'B', np.int),
+            ('rate', 'l', np.int),
+            ('kHz', 'f', np.float),
+            ('event_len', 'B', np.int),
+        ]
 
-    if version >= 4.3:
-        extended_dtype.append(('gps_mode', '<B'))
-        extended_dtype.append(('hdop', '<f'))
+        post_struct = [
+            ('longitude', 'd', np.float64),
+            ('latitude', 'd', np.float),
+            ('transducer', 'B', np.int),
+            ('options', 'B', np.int),
+            ('data_offset', 'B', np.int),
+        ]
 
-    return dtype, extended_dtype
+        if self.version >= '3.3':
+            post_struct.append(('utm_x', 'd', np.float))
+            post_struct.append(('utm_y', 'd', np.float))
+
+        if self.version >= '4.0':
+            post_struct.append(('cycles', 'B', np.int))
+            post_struct.append(('volts', 'B', np.int))
+            post_struct.append(('power', 'B', np.int))
+            post_struct.append(('gain', 'B', np.int))
+            post_struct.append(('previous_offset', 'H', np.int16))
+
+        if self.version >= '4.2':
+            post_struct.append(('antenna_e1', '4f', np.float))
+            post_struct.append(('antenna_ht', '4f', np.float))
+            post_struct.append(('draft', '4f', np.float))
+            post_struct.append(('tide', '4f', np.float))
+
+        if self.version >= '4.3':
+            post_struct.append(('gps_mode', 'B', np.int))
+            post_struct.append(('hdop', 'f', np.float))
+
+        return pre_struct, post_struct
