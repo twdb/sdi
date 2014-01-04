@@ -26,14 +26,14 @@ class Dataset(object):
 
     def parse_records(self, fid, data_length):
         pre_struct, post_struct = self.record_struct()
+        event_struct = [('event', None, None)]
 
         # intitialize trace lists
         trace_metadata = dict([
-            [name, []] for name, fmt, dtype in pre_struct + post_struct
+            [name, []] for name, fmt, dtype in pre_struct + post_struct + event_struct
         ])
 
-        trace_metadata['event'] = []
-        trace_intensity = []
+        trace_intensities = []
 
         pre_fmt = '<' + ''.join([fmt for name, fmt, dtype in pre_struct])
         pre_names = [name for name, fmt, dtype in pre_struct]
@@ -67,15 +67,37 @@ class Dataset(object):
 
             fid.seek(npos + pre_dict['offset'] + 2)
             size = pre_dict['num_pnts']
-            trace_intensity.append(struct.unpack('<' + str(size) + 'H', fid.read(size * 2)))
+            trace_intensities.append(struct.unpack('<' + str(size) + 'H', fid.read(size * 2)))
             npos = int(fid.tell())
 
-        self.trace_intensity = trace_intensity
-
-        for key, value, dtype in pre_struct + post_struct:
+        # convert trace_metadata lists to np arrays
+        for key, value, dtype in pre_struct + post_struct + event_struct:
             trace_metadata[key] = np.array(trace_metadata[key], dtype=dtype)
-
         self.trace_metadata = trace_metadata
+
+        # trace intensity are variable length if power changes mid-trace, so we
+        # need to build a clean np-array image, filling with nans
+        ti_lengths = np.array([len(i) for i in trace_intensities])
+        max_length = np.max(ti_lengths)
+        discontinuities = np.where((ti_lengths[1:] - ti_lengths[:-1]) != 0)
+
+        # adjust discontinuity to use as for splitting the trace_intensities
+        # lists
+        adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
+        starts = [0] + adjusted
+        ends = adjusted + [len(trace_intensities)]
+
+        def _padded_sub_trace(trace_intensities, start, end):
+            sub_trace = np.array(trace_intensities[start:end])
+            fill_nans = np.nan + np.zeros((sub_trace.shape[0], max_length - sub_trace.shape[1]))
+            return np.column_stack([sub_trace, fill_nans])
+
+        intensity_image = np.vstack([
+            _padded_sub_trace(trace_intensities, start, end)
+            for start, end in zip(starts, ends)
+        ])
+
+        self.intensity_image = intensity_image
 
     def parse_file_header(self, f):
         """
