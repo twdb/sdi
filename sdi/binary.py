@@ -56,6 +56,38 @@ class Dataset(object):
 
         self.frequencies = self.assemble_frequencies()
 
+    def parse_file_header(self, f):
+        """
+        Reads in file header information. Based on the specification:
+            Offset Size          File Header
+
+            0   8 Filename       array[1..8] of Char  Original printable base filename.  All 8 chars
+                                                      are used.  Formed using date and file number
+                                                      with YYMMDDFF where FF = '01'..'99','9A'..'ZZ'
+            8   1 Cr             Char constant 13H
+            9   1 Lf             Char constant 10H
+           10   1 Version        Byte                 1st nibble = major, 2nd = minor
+                                                      43H = version 4.3
+           11   1 ResCm          Byte                 Sample resolution in centimeters.  Used in
+                                                      versions before 1.6, now zero. Superseeded
+                                                      by the Rate field
+        """
+        f.seek(0)
+
+        filename, cr, lf, version_byte, resolution_cm = struct.unpack('<8s2cBB', f.read(12))
+        major_version = version_byte >> 4
+        minor_version = version_byte & 0xF
+
+        version = '%s.%s' % (major_version, minor_version)
+        if version <= '3.2':
+            raise NotImplementedError('Reading of file formats <= 3.2 Not Supported, File Version=' + str(version))
+
+        return {
+            'filename': filename,
+            'version': version,
+            'resolution_cm': resolution_cm,
+        }
+
     def parse_records(self, fid, data_length):
         pre_struct, post_struct = self.record_struct()
         event_struct = [('event', None, None)]
@@ -130,38 +162,6 @@ class Dataset(object):
         ])
 
         self.intensity_image = intensity_image
-
-    def parse_file_header(self, f):
-        """
-        Reads in file header information. Based on the specification:
-            Offset Size          File Header
-
-            0   8 Filename       array[1..8] of Char  Original printable base filename.  All 8 chars
-                                                      are used.  Formed using date and file number
-                                                      with YYMMDDFF where FF = '01'..'99','9A'..'ZZ'
-            8   1 Cr             Char constant 13H
-            9   1 Lf             Char constant 10H
-           10   1 Version        Byte                 1st nibble = major, 2nd = minor
-                                                      43H = version 4.3
-           11   1 ResCm          Byte                 Sample resolution in centimeters.  Used in
-                                                      versions before 1.6, now zero. Superseeded
-                                                      by the Rate field
-        """
-        f.seek(0)
-
-        filename, cr, lf, version_byte, resolution_cm = struct.unpack('<8s2cBB', f.read(12))
-        major_version = version_byte >> 4
-        minor_version = version_byte & 0xF
-
-        version = '%s.%s' % (major_version, minor_version)
-        if version <= '3.2':
-            raise NotImplementedError('Reading of file formats <= 3.2 Not Supported, File Version=' + str(version))
-
-        return {
-            'filename': filename,
-            'version': version,
-            'resolution_cm': resolution_cm,
-        }
 
     def record_struct(self):
         pre_struct = [
