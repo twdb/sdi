@@ -8,6 +8,36 @@ class Dataset(object):
     def __init__(self, filepath):
         self.filepath = filepath
 
+    def assemble_frequencies(self):
+        """build clean dicts containing frequency metadata and intensity images
+        for all available frequencies
+        """
+        frequencies = {}
+
+        transducers = np.unique(self.trace_metadata['transducer'])
+        for transducer in transducers:
+            freq_dict = {}
+            freq_mask = np.where(self.trace_metadata['transducer'] == transducer)
+
+            unique_kHzs = np.unique(self.trace_metadata['kHz'][freq_mask])
+
+            if len(unique_kHzs) > 1:
+                raise RuntimeError(
+                    "The file has been corrupted or there is a bug in this "
+                    "parsing library. Either way, we can't figure out what "
+                    "data to return."
+                )
+            else:
+                khz = unique_kHzs[0]
+
+            for key, array in self.trace_metadata.iteritems():
+                freq_dict[key] = array[freq_mask]
+
+            freq_dict['intensity'] = self.intensity_image[freq_mask]
+            frequencies[khz] = freq_dict
+
+        return frequencies
+
     def parse(self):
         with open(self.filepath, 'rb') as f:
             data = f.read()
@@ -23,6 +53,8 @@ class Dataset(object):
         self.date = datetime.strptime(self.survey_line_number[:6], '%y%m%d').date()
 
         self.parse_records(fid, data_length)
+
+        self.frequencies = self.assemble_frequencies()
 
     def parse_records(self, fid, data_length):
         pre_struct, post_struct = self.record_struct()
