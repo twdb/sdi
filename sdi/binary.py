@@ -4,6 +4,12 @@ from StringIO import StringIO
 
 import numpy as np
 
+
+def read(filepath):
+    dataset = Dataset(filepath)
+    return dataset.as_dict()
+
+
 class Dataset(object):
     def __init__(self, filepath):
         self.filepath = filepath
