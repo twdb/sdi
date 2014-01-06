@@ -7,6 +7,19 @@ import numpy as np
 class Dataset(object):
     def __init__(self, filepath):
         self.filepath = filepath
+        self.parsed = False
+
+    def as_dict(self):
+        if not self.parsed:
+            self.parse()
+
+        return {
+            'date': self.date,
+            'filepath': self.filepath,
+            'file_version': self.version,
+            'frequencies': self.frequencies,
+            'survey_line_number': self.survey_line_number,
+        }
 
     def assemble_frequencies(self):
         """build clean dicts containing frequency metadata and intensity images
@@ -55,6 +68,8 @@ class Dataset(object):
         self.parse_records(fid, data_length)
 
         self.frequencies = self.assemble_frequencies()
+
+        self.parsed = True
 
     def parse_file_header(self, f):
         """
