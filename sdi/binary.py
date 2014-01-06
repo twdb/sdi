@@ -139,6 +139,13 @@ class Dataset(object):
             trace_metadata[key] = np.array(trace_metadata[key], dtype=dtype)
         self.trace_metadata = trace_metadata
 
+        self.intensity_image = self.build_intensity_image(trace_intensities)
+
+    def build_intensity_image(self, trace_intensities):
+        """take list of trace_intensities (each a variable length list) and
+        convert to a np.array representation, padding any missing columns with
+        NaNs
+        """
         # trace intensity are variable length if power changes mid-trace, so we
         # need to build a clean np-array image, filling with nans
         ti_lengths = np.array([len(i) for i in trace_intensities])
@@ -151,17 +158,17 @@ class Dataset(object):
         starts = [0] + adjusted
         ends = adjusted + [len(trace_intensities)]
 
-        def _padded_sub_trace(trace_intensities, start, end):
+        def _padded_sub_trace(trace_intensities, start, end, to_length):
             sub_trace = np.array(trace_intensities[start:end])
-            fill_nans = np.nan + np.zeros((sub_trace.shape[0], max_length - sub_trace.shape[1]))
+            fill_nans = np.nan + np.zeros((sub_trace.shape[0], to_length - sub_trace.shape[1]))
             return np.column_stack([sub_trace, fill_nans])
 
         intensity_image = np.vstack([
-            _padded_sub_trace(trace_intensities, start, end)
+            _padded_sub_trace(trace_intensities, start, end, max_length)
             for start, end in zip(starts, ends)
         ])
 
-        self.intensity_image = intensity_image
+        return intensity_image
 
     def record_struct(self):
         pre_struct = [
