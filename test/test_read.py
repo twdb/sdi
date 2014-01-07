@@ -48,3 +48,7 @@ class TestRead(unittest.TestCase):
         filename = os.path.join(self.test_dir, 'files', '08091852.bin')
         d = Dataset(filename)
         data = d.as_dict()
+
+
+if __name__ == '__main__':
+    unittest.main()
