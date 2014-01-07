@@ -120,13 +120,9 @@ class Dataset(object):
 
         trace_intensities = []
 
-        pre_fmt = '<' + ''.join([fmt for name, fmt, dtype in pre_struct])
-        pre_names = [name for name, fmt, dtype in pre_struct]
-        pre_size = struct.calcsize(pre_fmt)
-
-        post_fmt = '<' + ''.join([fmt for name, fmt, dtype in post_struct])
-        post_size = struct.calcsize(post_fmt)
-        post_names = [name for name, fmt, dtype in post_struct]
+        # pre-compute format, names and size for unpacking
+        pre_fmt, pre_names, pre_size = self._split_struct_list(pre_structs)
+        post_fmt, post_names, post_size = self._split_struct_list(post_structs)
 
         npos = 12
         fid.seek(npos)
@@ -250,4 +246,16 @@ class Dataset(object):
             post_struct.append(('gps_mode', 'B', np.int))
             post_struct.append(('hdop', 'f', np.float))
 
-        return pre_struct, post_struct
+    def _split_struct_list(self, struct_list):
+        """Helper method for splitting struct lists into components for
+        processing files. Returns a tuple containing (fmt, names, size) where
+        fmt is a single struct string suitable for use with struct.unpack(),
+        names is the list of names to associate with each element of a
+        corresponding unpacked tuple and size is the size (in bytes) of the
+        string of data that should be unpacked.
+        """
+        fmt = '<' + ''.join([fmt for name, fmt, dtype in struct_list])
+        names = [name for name, _, _ in struct_list]
+        size = struct.calcsize(fmt)
+
+        return fmt, names, size
