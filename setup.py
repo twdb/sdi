@@ -16,7 +16,7 @@ setup(
     long_description=__doc__,
     platforms='any',
     install_requires=[
-        'numpy>=1.6',
+        'numpy>=1.7',
     ],
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',

@@ -1,4 +1,5 @@
 from datetime import datetime
+import itertools
 import struct
 from StringIO import StringIO
 
@@ -39,7 +40,6 @@ class Dataset(object):
             freq_mask = np.where(self.trace_metadata['transducer'] == transducer)
 
             unique_kHzs = np.unique(self.trace_metadata['kHz'][freq_mask])
-
             if len(unique_kHzs) > 1:
                 raise RuntimeError(
                     "The file has been corrupted or there is a bug in this "
@@ -57,7 +57,49 @@ class Dataset(object):
 
         return frequencies
 
+    def build_intensity_image(self, trace_intensities):
+        """take list of trace_intensities (each a variable length list) and
+        convert to a np.array representation, padding any missing columns with
+        NaNs
+        """
+        # trace intensity are variable length if power changes mid-trace, so we
+        # need to build a clean np-array image, filling with nans
+        ti_lengths = np.array([len(i) for i in trace_intensities])
+        max_length = np.max(ti_lengths)
+        discontinuities = np.where((ti_lengths[1:] - ti_lengths[:-1]) != 0)
+
+        # adjust discontinuity to use as for splitting the trace_intensities
+        # lists
+        adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
+        starts = [0] + adjusted
+        ends = adjusted + [len(trace_intensities)]
+
+        def _padded_sub_trace(trace_intensities, start, end, to_length):
+            sub_trace = np.array(trace_intensities[start:end])
+            fill_nans = np.nan + np.zeros((sub_trace.shape[0], to_length - sub_trace.shape[1]))
+            return np.column_stack([sub_trace, fill_nans])
+
+        intensity_image = np.vstack([
+            _padded_sub_trace(trace_intensities, start, end, max_length)
+            for start, end in zip(starts, ends)
+        ])
+
+        return intensity_image
+
+    def convert_to_meters_array(self, units):
+        """Given an array of units, returns an array of conversions. This is
+        used for converting trace data that depends on the fields for units and
+        spdosunits.
+        """
+        convert_to_meters = np.ones(len(units), dtype=np.float)
+        # feet to meters
+        convert_to_meters[units == 0] = 0.3048
+        # fathoms to meters
+        convert_to_meters[units == 2] = 1.8288
+        return convert_to_meters
+
     def parse(self):
+        """Parse the entire file and initialize attributes"""
         with open(self.filepath, 'rb') as f:
             data = f.read()
 
@@ -110,89 +152,7 @@ class Dataset(object):
         }
 
     def parse_records(self, fid, data_length):
-        pre_struct, post_struct = self.record_struct()
-        event_struct = [('event', None, None)]
-
-        # intitialize trace lists
-        trace_metadata = dict([
-            [name, []] for name, fmt, dtype in pre_struct + post_struct + event_struct
-        ])
-
-        trace_intensities = []
-
-        pre_fmt = '<' + ''.join([fmt for name, fmt, dtype in pre_struct])
-        pre_names = [name for name, fmt, dtype in pre_struct]
-        pre_size = struct.calcsize(pre_fmt)
-
-        post_fmt = '<' + ''.join([fmt for name, fmt, dtype in post_struct])
-        post_size = struct.calcsize(post_fmt)
-        post_names = [name for name, fmt, dtype in post_struct]
-
-        npos = 12
-        fid.seek(npos)
-
-        while npos < data_length:
-            pre_record = struct.unpack(pre_fmt, fid.read(pre_size))
-            pre_dict = dict(zip(pre_names, pre_record))
-
-            for key, value in pre_dict.iteritems():
-                trace_metadata[key].append(value)
-
-            size = pre_dict['event_len']
-            if size > 0:
-                event = struct.unpack('<' + str(size) + 's', fid.read(size))[0]
-            else:
-                event = ''
-            trace_metadata['event'].append(event)
-
-            post_record = struct.unpack(post_fmt, fid.read(post_size))
-            post_dict = dict(zip(post_names, post_record))
-            for key, value in post_dict.iteritems():
-                trace_metadata[key].append(value)
-
-            fid.seek(npos + pre_dict['offset'] + 2)
-            size = pre_dict['num_pnts']
-            trace_intensities.append(struct.unpack('<' + str(size) + 'H', fid.read(size * 2)))
-            npos = int(fid.tell())
-
-        # convert trace_metadata lists to np arrays
-        for key, value, dtype in pre_struct + post_struct + event_struct:
-            trace_metadata[key] = np.array(trace_metadata[key], dtype=dtype)
-        self.trace_metadata = trace_metadata
-
-        self.intensity_image = self.build_intensity_image(trace_intensities)
-
-    def build_intensity_image(self, trace_intensities):
-        """take list of trace_intensities (each a variable length list) and
-        convert to a np.array representation, padding any missing columns with
-        NaNs
-        """
-        # trace intensity are variable length if power changes mid-trace, so we
-        # need to build a clean np-array image, filling with nans
-        ti_lengths = np.array([len(i) for i in trace_intensities])
-        max_length = np.max(ti_lengths)
-        discontinuities = np.where((ti_lengths[1:] - ti_lengths[:-1]) != 0)
-
-        # adjust discontinuity to use as for splitting the trace_intensities
-        # lists
-        adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
-        starts = [0] + adjusted
-        ends = adjusted + [len(trace_intensities)]
-
-        def _padded_sub_trace(trace_intensities, start, end, to_length):
-            sub_trace = np.array(trace_intensities[start:end])
-            fill_nans = np.nan + np.zeros((sub_trace.shape[0], to_length - sub_trace.shape[1]))
-            return np.column_stack([sub_trace, fill_nans])
-
-        intensity_image = np.vstack([
-            _padded_sub_trace(trace_intensities, start, end, max_length)
-            for start, end in zip(starts, ends)
-        ])
-
-        return intensity_image
-
-    def record_struct(self):
-        pre_struct = [
+        pre_structs = [
             ('offset', 'H', np.int),
             ('trace_num', 'l', np.int),
             ('units', 'B', np.int),
@@ -213,41 +173,154 @@ class Dataset(object):
             ('num_pnts','h', np.int),
             ('clock', 'l', np.int),
             ('hour', 'B', np.int),
-            ('min', 'B', np.int),
-            ('sec', 'B', np.int),
-            ('sec100', 'B', np.int),
+            ('minute', 'B', np.int),
+            ('second', 'B', np.int),
+            ('centisecond', 'B', np.int),
             ('rate', 'l', np.int),
             ('kHz', 'f', np.float),
             ('event_len', 'B', np.int),
         ]
-
-        post_struct = [
+        event_struct = [('event', None, None)]
+        post_structs = [
             ('longitude', 'd', np.float64),
             ('latitude', 'd', np.float),
             ('transducer', 'B', np.int),
             ('options', 'B', np.int),
             ('data_offset', 'B', np.int),
         ]
-
         if self.version >= '3.3':
-            post_struct.append(('utm_x', 'd', np.float))
-            post_struct.append(('utm_y', 'd', np.float))
-
+            post_structs.append(('utm_x', 'd', np.float))
+            post_structs.append(('utm_y', 'd', np.float))
         if self.version >= '4.0':
-            post_struct.append(('cycles', 'B', np.int))
-            post_struct.append(('volts', 'B', np.int))
-            post_struct.append(('power', 'B', np.int))
-            post_struct.append(('gain', 'B', np.int))
-            post_struct.append(('previous_offset', 'H', np.int16))
-
+            post_structs.append(('cycles', 'B', np.int))
+            post_structs.append(('volts', 'B', np.int))
+            post_structs.append(('power', 'B', np.int))
+            post_structs.append(('gain', 'B', np.int))
+            post_structs.append(('previous_offset', 'H', np.int16))
         if self.version >= '4.2':
-            post_struct.append(('antenna_e1', '4f', np.float))
-            post_struct.append(('antenna_ht', '4f', np.float))
-            post_struct.append(('draft', '4f', np.float))
-            post_struct.append(('tide', '4f', np.float))
-
+            post_structs.append(('antenna_e1', '4f', np.float))
+            post_structs.append(('antenna_ht', '4f', np.float))
+            post_structs.append(('draft', '4f', np.float))
+            post_structs.append(('tide', '4f', np.float))
         if self.version >= '4.3':
-            post_struct.append(('gps_mode', 'B', np.int))
-            post_struct.append(('hdop', 'f', np.float))
+            post_structs.append(('gps_mode', 'B', np.int))
+            post_structs.append(('hdop', 'f', np.float))
 
-        return pre_struct, post_struct
+        all_structs = pre_structs + event_struct + post_structs
+
+        # intitialize dict of trace elements
+        raw_trace = dict([
+            [name, []] for name, fmt, dtype in all_structs
+        ])
+
+        trace_intensities = []
+
+        # pre-compute format, names and size for unpacking
+        pre_fmt, pre_names, pre_size = self._split_struct_list(pre_structs)
+        post_fmt, post_names, post_size = self._split_struct_list(post_structs)
+
+        npos = 12
+        fid.seek(npos)
+
+        # loop through data extract traces. the length of the event string
+        # changes between traces and is defined just before it (event_len), so
+        # parsing a line is split into three stages: pre-event, event, and
+        # post-event
+        while npos < data_length:
+            pre_record = struct.unpack(pre_fmt, fid.read(pre_size))
+            pre_dict = dict(zip(pre_names, pre_record))
+
+            size = pre_dict['event_len']
+            if size > 0:
+                event = struct.unpack('<' + str(size) + 's', fid.read(size))[0]
+            else:
+                event = ''
+            raw_trace['event'].append(event)
+
+            post_record = struct.unpack(post_fmt, fid.read(post_size))
+            post_dict = dict(zip(post_names, post_record))
+
+            for key, value in itertools.chain(pre_dict.iteritems(), post_dict.iteritems()):
+                raw_trace[key].append(value)
+
+            fid.seek(npos + pre_dict['offset'] + 2)
+
+            size = pre_dict['num_pnts']
+            intensity = struct.unpack('<' + str(size) + 'H', fid.read(size * 2))
+            trace_intensities.append(intensity)
+            npos = int(fid.tell())
+
+        self.trace_metadata = self.process_raw_trace(raw_trace, all_structs)
+        self.intensity_image = self.build_intensity_image(trace_intensities)
+
+    def process_raw_trace(self, raw_trace, all_structs):
+        """Clean up raw trace data - convert lists to appropriately typed
+        np.arrays of uniform units (meters for distance values)
+        """
+        processed = {}
+
+        # convert raw trace lists to arrays
+        for key, value, dtype in all_structs:
+            array = np.array(raw_trace[key], dtype=dtype)
+            processed[key] = array
+
+        # convert unit-dependent fields to meters - first by converting them to
+        # whole units (feet, meters, fathoms), then applying conversion factor
+        for raw_key in ['min_window10', 'max_window10']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-2]
+            processed[new_key] = array / 10
+        for raw_key in ['draft100', 'tide100']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-3]
+            processed[new_key] = array / 100
+
+        units = processed['units']
+        if np.any(units > 2):
+            raise NotImplementedError(
+                'This sdi file contains unsupported units.',
+            )
+
+        convert_to_meters = self.convert_to_meters_array(units)
+        keys_to_convert = [
+            'min_window',
+            'max_window',
+            'draft',
+            'tide',
+            'display_range'
+        ]
+        for key in keys_to_convert:
+            processed[key] = processed[key] * convert_to_meters
+
+        # convert heave to meters
+        heave_cm = processed.pop('heave_cm')
+        processed['heave'] = heave_cm * 100.0
+
+        # convert speed of sound to meters
+        convert_spdos = self.convert_to_meters_array(raw_trace['spdos_units'])
+        processed['spdos'] = processed['spdos'] * convert_spdos
+
+        # consolidate time fields into a datetime64 array
+        num_records = len(processed['hour'])
+        dates = np.resize(np.array(self.date, dtype=np.datetime64), num_records)
+        hours = processed['hour'].astype('timedelta64[h]')
+        minutes = processed['minute'].astype('timedelta64[m]')
+        seconds = processed['second'].astype('timedelta64[s]')
+        milliseconds = (processed['centisecond'] * 10.0).astype('timedelta64[ms]')
+        processed['datetime'] = dates + hours + minutes + seconds + milliseconds
+
+        return processed
+
+    def _split_struct_list(self, struct_list):
+        """Helper method for splitting struct lists into components for
+        processing files. Returns a tuple containing (fmt, names, size) where
+        fmt is a single struct string suitable for use with struct.unpack(),
+        names is the list of names to associate with each element of a
+        corresponding unpacked tuple and size is the size (in bytes) of the
+        string of data that should be unpacked.
+        """
+        fmt = '<' + ''.join([fmt for name, fmt, dtype in struct_list])
+        names = [name for name, _, _ in struct_list]
+        size = struct.calcsize(fmt)
+
+        return fmt, names, size
