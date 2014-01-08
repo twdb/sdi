@@ -310,7 +310,7 @@ class Dataset(object):
         processed['heave'] = heave_cm * 100.0
 
         # convert speed of sound to meters
-        convert_spdos = self.convert_to_meters_array(raw_trace['spdos_units'])
+        convert_spdos = self.convert_to_meters_array(processed['spdos_units'])
         processed['spdos'] = processed['spdos'] * convert_spdos
 
         # consolidate time fields into a datetime64 array
