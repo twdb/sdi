@@ -175,7 +175,10 @@ class Dataset(object):
 
         # adjust discontinuity to use as for splitting the trace_intensities
         # lists
-        adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
+        try:
+            adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
+        except IndexError:
+            adjusted = []
         starts = [0] + adjusted
         ends = adjusted + [len(trace_intensities)]
 
