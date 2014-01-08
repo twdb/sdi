@@ -57,6 +57,35 @@ class Dataset(object):
 
         return frequencies
 
+    def build_intensity_image(self, trace_intensities):
+        """take list of trace_intensities (each a variable length list) and
+        convert to a np.array representation, padding any missing columns with
+        NaNs
+        """
+        # trace intensity are variable length if power changes mid-trace, so we
+        # need to build a clean np-array image, filling with nans
+        ti_lengths = np.array([len(i) for i in trace_intensities])
+        max_length = np.max(ti_lengths)
+        discontinuities = np.where((ti_lengths[1:] - ti_lengths[:-1]) != 0)
+
+        # adjust discontinuity to use as for splitting the trace_intensities
+        # lists
+        adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
+        starts = [0] + adjusted
+        ends = adjusted + [len(trace_intensities)]
+
+        def _padded_sub_trace(trace_intensities, start, end, to_length):
+            sub_trace = np.array(trace_intensities[start:end])
+            fill_nans = np.nan + np.zeros((sub_trace.shape[0], to_length - sub_trace.shape[1]))
+            return np.column_stack([sub_trace, fill_nans])
+
+        intensity_image = np.vstack([
+            _padded_sub_trace(trace_intensities, start, end, max_length)
+            for start, end in zip(starts, ends)
+        ])
+
+        return intensity_image
+
     def parse(self):
         with open(self.filepath, 'rb') as f:
             data = f.read()
@@ -157,35 +186,6 @@ class Dataset(object):
         self.trace_metadata = trace_metadata
 
         self.intensity_image = self.build_intensity_image(trace_intensities)
-
-    def build_intensity_image(self, trace_intensities):
-        """take list of trace_intensities (each a variable length list) and
-        convert to a np.array representation, padding any missing columns with
-        NaNs
-        """
-        # trace intensity are variable length if power changes mid-trace, so we
-        # need to build a clean np-array image, filling with nans
-        ti_lengths = np.array([len(i) for i in trace_intensities])
-        max_length = np.max(ti_lengths)
-        discontinuities = np.where((ti_lengths[1:] - ti_lengths[:-1]) != 0)
-
-        # adjust discontinuity to use as for splitting the trace_intensities
-        # lists
-        adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
-        starts = [0] + adjusted
-        ends = adjusted + [len(trace_intensities)]
-
-        def _padded_sub_trace(trace_intensities, start, end, to_length):
-            sub_trace = np.array(trace_intensities[start:end])
-            fill_nans = np.nan + np.zeros((sub_trace.shape[0], to_length - sub_trace.shape[1]))
-            return np.column_stack([sub_trace, fill_nans])
-
-        intensity_image = np.vstack([
-            _padded_sub_trace(trace_intensities, start, end, max_length)
-            for start, end in zip(starts, ends)
-        ])
-
-        return intensity_image
 
     def record_struct(self):
         pre_struct = [
