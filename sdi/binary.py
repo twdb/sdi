@@ -40,7 +40,6 @@ class Dataset(object):
             freq_mask = np.where(self.trace_metadata['transducer'] == transducer)
 
             unique_kHzs = np.unique(self.trace_metadata['kHz'][freq_mask])
-
             if len(unique_kHzs) > 1:
                 raise RuntimeError(
                     "The file has been corrupted or there is a bug in this "
@@ -100,6 +99,7 @@ class Dataset(object):
         return convert_to_meters
 
     def parse(self):
+        """Parse the entire file and initialize attributes"""
         with open(self.filepath, 'rb') as f:
             data = f.read()
 
@@ -306,7 +306,7 @@ class Dataset(object):
         hours = processed['hour'].astype('timedelta64[h]')
         minutes = processed['minute'].astype('timedelta64[m]')
         seconds = processed['second'].astype('timedelta64[s]')
-        milliseconds = (processed['centisecond'] * 10000.0).astype('timedelta64[ms]')
+        milliseconds = (processed['centisecond'] * 10.0).astype('timedelta64[ms]')
         processed['datetime'] = dates + hours + minutes + seconds + milliseconds
 
         return processed
