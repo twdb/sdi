@@ -87,15 +87,28 @@ class Dataset(object):
         return intensity_image
 
     def convert_to_meters_array(self, units):
-        """Given an array of units, returns an array of conversions. This is
-        used for converting trace data that depends on the fields for units and
-        spdosunits.
+        """Given an array of unit integers, returns an array of conversion
+        factors suitable for converting another array to meters. This is used
+        for converting trace data that depends on the units field.
         """
-        convert_to_meters = np.ones(len(units), dtype=np.float)
-        # feet to meters
-        convert_to_meters[units == 0] = 0.3048
-        # fathoms to meters
-        convert_to_meters[units == 2] = 1.8288
+        # Based on this excerpt from the spec:
+        #   6   1 Units          Byte                 0 = feet, 1 = meters, 2 = fathoms.  Fields
+                                                       #that use Units are noted
+        #   7   1 Spdosunits     Byte                 0 = feet, 1 = meters. Used by Spdos only
+
+        units_factors = {
+            0: 0.3048,  # feet to meters
+            1: 1.0,  # meters to meters
+            2: 1.8288,  # fathoms to meters
+        }
+        convert_to_meters = np.zeros(len(units), dtype=np.float)
+
+        for unit_value, conversion_factor in units_factors.iteritems():
+            convert_to_meters[units == unit_value] = conversion_factor
+
+        if np.any(convert_to_meters == 0):
+            raise NotImplementedError("Encountered unsupported units.")
+
         return convert_to_meters
 
     def parse(self):
