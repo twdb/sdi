@@ -87,6 +87,18 @@ class Dataset(object):
 
         return intensity_image
 
+    def convert_to_meters_array(self, units):
+        """Given an array of units, returns an array of conversions. This is
+        used for converting trace data that depends on the fields for units and
+        spdosunits.
+        """
+        convert_to_meters = np.ones(len(units), dtype=np.float)
+        # feet to meters
+        convert_to_meters[units == 0] = 0.3048
+        # fathoms to meters
+        convert_to_meters[units == 2] = 1.8288
+        return convert_to_meters
+
     def parse(self):
         with open(self.filepath, 'rb') as f:
             data = f.read()
@@ -238,7 +250,66 @@ class Dataset(object):
             trace_intensities.append(intensity)
             npos = int(fid.tell())
 
+        self.trace_metadata = self.process_raw_trace(raw_trace, all_structs)
         self.intensity_image = self.build_intensity_image(trace_intensities)
+
+    def process_raw_trace(self, raw_trace, all_structs):
+        """Clean up raw trace data - convert lists to appropriately typed
+        np.arrays of uniform units (meters for distance values)
+        """
+        processed = {}
+
+        # convert raw trace lists to arrays
+        for key, value, dtype in all_structs:
+            array = np.array(raw_trace[key], dtype=dtype)
+            processed[key] = array
+
+        # convert unit-dependent fields to meters - first by converting them to
+        # whole units (feet, meters, fathoms), then applying conversion factor
+        for raw_key in ['min_window10', 'max_window10']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-2]
+            processed[new_key] = array / 10
+        for raw_key in ['draft100', 'tide100']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-3]
+            processed[new_key] = array / 100
+
+        units = processed['units']
+        if np.any(units > 2):
+            raise NotImplementedError(
+                'This sdi file contains unsupported units.',
+            )
+
+        convert_to_meters = self.convert_to_meters_array(units)
+        keys_to_convert = [
+            'min_window',
+            'max_window',
+            'draft',
+            'tide',
+            'display_range'
+        ]
+        for key in keys_to_convert:
+            processed[key] = processed[key] * convert_to_meters
+
+        # convert heave to meters
+        heave_cm = processed.pop('heave_cm')
+        processed['heave'] = heave_cm * 100.0
+
+        # convert speed of sound to meters
+        convert_spdos = self.convert_to_meters_array(raw_trace['spdos_units'])
+        processed['spdos'] = processed['spdos'] * convert_spdos
+
+        # consolidate time fields into a datetime64 array
+        num_records = len(processed['hour'])
+        dates = np.resize(np.array(self.date, dtype=np.datetime64), num_records)
+        hours = processed['hour'].astype('timedelta64[h]')
+        minutes = processed['minute'].astype('timedelta64[m]')
+        seconds = processed['second'].astype('timedelta64[s]')
+        milliseconds = (processed['centisecond'] * 10000.0).astype('timedelta64[ms]')
+        processed['datetime'] = dates + hours + minutes + seconds + milliseconds
+
+        return processed
 
     def _split_struct_list(self, struct_list):
         """Helper method for splitting struct lists into components for
