@@ -250,14 +250,18 @@ class Dataset(object):
 
         # convert unit-dependent fields to meters - first by converting them to
         # whole units (feet, meters, fathoms), then applying conversion factor
+        # some keys are depreciated and overwritten in recent versions of format
+        # 'draft100' and 'tide100' for example are ignored it draft and tide are 
+        # present
         for raw_key in ['min_window10', 'max_window10']:
             array = processed.pop(raw_key)
             new_key = raw_key[:-2]
-            processed[new_key] = array / 10
+            processed[new_key] = array / 10.
         for raw_key in ['draft100', 'tide100']:
             array = processed.pop(raw_key)
             new_key = raw_key[:-3]
-            processed[new_key] = array / 100
+            if new_key not in raw_trace.keys():
+                processed[new_key] = array / 100.
 
         units = processed['units']
         if np.any(units > 2):
