@@ -6,7 +6,7 @@ def read(filename):
     coordinate system used in the rest of the lake survey. We ignore the display 
     related color and width fields in the file.
     """
-    
+
     cores = {}
     with open(filename) as f:
         units = f.readline().strip('\r\n').lower()
@@ -24,8 +24,8 @@ def read(filename):
             fields = line.split()
             core_id = fields[2]
             data = {}
-            data['easting'] = fields[0]
-            data['northing'] = fields[1]
+            data['easting'] = float(fields[0])
+            data['northing'] = float(fields[1])
             data['layer_interface_depths'] = [float(fields[i])*conv_factor for i in range(5, len(fields), 4)]
             cores[core_id] = data
 
