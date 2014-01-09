@@ -3,15 +3,15 @@ import unittest
 import numpy as np
 from numpy import nan
 
-from sdi.binary import Dataset
+from sdi.binary import _fill_nans
 
 
-class TestBuildIntensityImage(unittest.TestCase):
-    """ Test build_intensity_image() method
+class TestFillNaNs(unittest.TestCase):
+    """ Test _fill_nans helper function
     """
 
     def test_uniform_length(self):
-        """Test that build_intensity_images works when the trace intensity
+        """Test that _fill_nans works when the trace intensity
         tuples are of uniform length.
         """
         trace_intensities = [
@@ -26,13 +26,12 @@ class TestBuildIntensityImage(unittest.TestCase):
             (8, 9, 10, 11),
         ], dtype=np.float)
 
-        d = Dataset(None)
-        image = d.build_intensity_image(trace_intensities)
+        image = _fill_nans(trace_intensities)
 
         np.testing.assert_allclose(image, expected_image)
 
     def test_increasing(self):
-        """Test that build_intensity_images works when the trace intensities
+        """Test that _fill_nans works when the trace intensities
         increase in length.
         """
         trace_intensities = [
@@ -53,12 +52,11 @@ class TestBuildIntensityImage(unittest.TestCase):
             (21, 22, 23,  24),
         ])
 
-        d = Dataset(None)
-        image = d.build_intensity_image(trace_intensities)
+        image = _fill_nans(trace_intensities)
         np.testing.assert_allclose(image, expected_image)
 
     def test_decreasing(self):
-        """Test that build_intensity_images works when the trace intensities
+        """Test that _fill_nans works when the trace intensities
         decrease in length.
         """
         trace_intensities = [
@@ -79,12 +77,11 @@ class TestBuildIntensityImage(unittest.TestCase):
             (21, 22, nan, nan),
         ]
 
-        d = Dataset(None)
-        image = d.build_intensity_image(trace_intensities)
+        image = _fill_nans(trace_intensities)
         np.testing.assert_allclose(image, expected_image)
 
     def test_ragged(self):
-        """Test that build_intensity_images works when the trace intensities
+        """Test that _fill_nans works when the trace intensities
         are all over the place.
         """
         trace_intensities = [
@@ -105,8 +102,7 @@ class TestBuildIntensityImage(unittest.TestCase):
             (21, 22,   23, nan),
         ]
 
-        d = Dataset(None)
-        image = d.build_intensity_image(trace_intensities)
+        image = _fill_nans(trace_intensities)
         np.testing.assert_allclose(image, expected_image)
 
 
