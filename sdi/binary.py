@@ -65,15 +65,18 @@ class Dataset(object):
         # trace intensity are variable length if power changes mid-trace, so we
         # need to build a clean np-array image, filling with nans
         ti_lengths = np.array([len(i) for i in trace_intensities])
-        max_length = np.max(ti_lengths)
-        discontinuities = np.where((ti_lengths[1:] - ti_lengths[:-1]) != 0)
+
+        # find discontinuities
+        discontinuities, = np.nonzero(ti_lengths[1:] - ti_lengths[:-1])
+
+        # convert to a list of indexes into trace_intensities where
+        # discontinuities exist - add 1 to discontinuities to count for
+        # shortening ti_lengths during the index trick to find the
+        # discontinuities
+        adjusted = (discontinuities + 1).tolist()
 
         # adjust discontinuity to use as for splitting the trace_intensities
         # lists
-        try:
-            adjusted = [discontinuity[0] + 1 for discontinuity in discontinuities]
-        except IndexError:
-            adjusted = []
         starts = [0] + adjusted
         ends = adjusted + [len(trace_intensities)]
 
@@ -82,6 +85,7 @@ class Dataset(object):
             fill_nans = np.nan + np.zeros((sub_trace.shape[0], to_length - sub_trace.shape[1]))
             return np.column_stack([sub_trace, fill_nans])
 
+        max_length = np.max(ti_lengths)
         intensity_image = np.vstack([
             _padded_sub_trace(trace_intensities, start, end, max_length)
             for start, end in zip(starts, ends)
