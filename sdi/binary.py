@@ -219,7 +219,7 @@ class Dataset(object):
             post_structs.append(('draft', '4f', np.float))
             post_structs.append(('tide', '4f', np.float))
         if self.version >= '4.3':
-            post_structs.append(('gps_mode', 'B', np.int))
+            post_structs.append(('gps_mode', 'b', np.int))
             post_structs.append(('hdop', 'f', np.float))
 
         all_structs = pre_structs + event_struct + post_structs
