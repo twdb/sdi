@@ -57,42 +57,6 @@ class Dataset(object):
 
         return frequencies
 
-    def build_intensity_image(self, trace_intensities):
-        """take list of trace_intensities (each a variable length list) and
-        convert to a np.array representation, padding any missing columns with
-        NaNs
-        """
-        # trace intensity are variable length if power changes mid-trace, so we
-        # need to build a clean np-array image, filling with nans
-        ti_lengths = np.array([len(i) for i in trace_intensities])
-
-        # find discontinuities
-        discontinuities, = np.nonzero(ti_lengths[1:] - ti_lengths[:-1])
-
-        # convert to a list of indexes into trace_intensities where
-        # discontinuities exist - add 1 to discontinuities to count for
-        # shortening ti_lengths during the index trick to find the
-        # discontinuities
-        adjusted = (discontinuities + 1).tolist()
-
-        # adjust discontinuity to use as for splitting the trace_intensities
-        # lists
-        starts = [0] + adjusted
-        ends = adjusted + [len(trace_intensities)]
-
-        def _padded_sub_trace(trace_intensities, start, end, to_length):
-            sub_trace = np.array(trace_intensities[start:end])
-            fill_nans = np.nan + np.zeros((sub_trace.shape[0], to_length - sub_trace.shape[1]))
-            return np.column_stack([sub_trace, fill_nans])
-
-        max_length = np.max(ti_lengths)
-        intensity_image = np.vstack([
-            _padded_sub_trace(trace_intensities, start, end, max_length)
-            for start, end in zip(starts, ends)
-        ])
-
-        return intensity_image
-
     def convert_to_meters_array(self, units):
         """Given an array of unit integers, returns an array of conversion
         factors suitable for converting another array to meters. This is used
@@ -271,7 +235,7 @@ class Dataset(object):
             npos = int(fid.tell())
 
         self.trace_metadata = self.process_raw_trace(raw_trace, all_structs)
-        self.intensity_image = self.build_intensity_image(trace_intensities)
+        self.intensity_image = _fill_nans(trace_intensities)
 
     def process_raw_trace(self, raw_trace, all_structs):
         """Clean up raw trace data - convert lists to appropriately typed
@@ -344,3 +308,40 @@ class Dataset(object):
         size = struct.calcsize(fmt)
 
         return fmt, names, size
+
+
+def _fill_nans(lists):
+    """take list of variable-length lists of floats and convert to a np.array
+    of shape (len(lists), max_length), padding any row that is less than
+    max_length with NaNs
+    """
+    # trace intensity are variable length if power changes mid-trace, so we
+    # need to build a clean np-array image, filling with nans
+    lengths = np.array([len(i) for i in lists])
+
+    # find discontinuities
+    discontinuities, = np.nonzero(lengths[1:] - lengths[:-1])
+
+    # convert to a list of indexes into lists where
+    # discontinuities exist - add 1 to discontinuities to count for
+    # shortening lengths during the index trick to find the
+    # discontinuities
+    adjusted = (discontinuities + 1).tolist()
+
+    # adjust discontinuity to use as for splitting the lists
+    # lists
+    starts = [0] + adjusted
+    ends = adjusted + [len(lists)]
+
+    def _padded_sub_array(lists, start, end, to_length):
+        sub_array = np.array(lists[start:end])
+        fill_nans = np.nan + np.zeros((sub_array.shape[0], to_length - sub_array.shape[1]))
+        return np.column_stack([sub_array, fill_nans])
+
+    max_length = np.max(lengths)
+    array = np.vstack([
+        _padded_sub_array(lists, start, end, max_length)
+        for start, end in zip(starts, ends)
+    ])
+
+    return array
