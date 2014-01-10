@@ -1,10 +1,11 @@
 import os
 import unittest
 from datetime import date
+import json
 
 import numpy as np
 
-from sdi.binary import read
+from sdi.binary import read, Dataset
 
 class TestReadMeta(unittest.TestCase):
     """ Test reading of metadata from binary files against values 
@@ -36,7 +37,7 @@ class TestReadMeta(unittest.TestCase):
             },
         }
 
-    def test_read_metadata(self):
+    def test_read_metadata_against_depthpic(self):
         """ Test that metadata matches what can be seen in DepthPic GUI. 
         Note: Only a limited number of fields are visible in DepthPic.
         """
@@ -50,6 +51,27 @@ class TestReadMeta(unittest.TestCase):
             self.assertAlmostEqual(np.unique(d['frequencies'][f200]['draft']), metadata['draft'], places=2)
             self.assertAlmostEqual(np.round(np.unique(d['frequencies'][f200]['spdos']),1), metadata['spdos'], places=1)
             self.assertAlmostEqual(np.unique(d['frequencies'][f200]['tide']), metadata['tide'], places=2)
+
+
+    def test_read_metadata_against_json(self):
+        """ Test that metadata against selected values exported from the 
+        binary files using the depreciated reader in pyhat 
+        (https://github.com/twdb/pyhat). The pyhat reader has been in use 
+        for several years and in the absense of an absolute way to test 
+        the reader this is a reasonable sanity check.
+        """
+
+        for root, dirs, files in os.walk(os.path.join(self.test_dir, 'files')):
+            for filename in files:
+                if filename.endswith('.bin'):
+                    jsonfile = os.path.join(root, filename.replace('.bin','.json'))
+                    with open(jsonfile) as f:
+                        j = json.load(f)
+                    d = Dataset(os.path.join(root, filename))
+                    d.parse()
+                    self.assertEqual(d.version, str(j['version']))
+                    for a,b in zip(sorted(d.frequencies.keys()), sorted(j['frequencies'])):
+                        self.assertAlmostEqual(a, b, places=1)
 
 
 if __name__ == '__main__':
