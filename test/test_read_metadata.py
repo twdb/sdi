@@ -47,6 +47,7 @@ class TestReadMeta(unittest.TestCase):
             d = read(filename)
             f200 = max(d['frequencies'].keys())
             
+            print 'testing %s against DepthPic' % (filename)
             self.assertEqual(d['date'], metadata['date'])
             self.assertAlmostEqual(np.unique(d['frequencies'][f200]['draft']), metadata['draft'], places=2)
             self.assertAlmostEqual(np.round(np.unique(d['frequencies'][f200]['spdos']),1), metadata['spdos'], places=1)
@@ -69,9 +70,11 @@ class TestReadMeta(unittest.TestCase):
                         j = json.load(f)
                     d = Dataset(os.path.join(root, filename))
                     d.parse()
+
+                    print 'testing %s against %s' % (filename, jsonfile)
                     self.assertEqual(d.version, str(j['version']))
                     for a,b in zip(sorted(d.frequencies.keys()), sorted(j['frequencies'])):
-                        self.assertAlmostEqual(a, b, places=1)
+                        self.assertAlmostEqual(a, b, places=0)
 
 
 if __name__ == '__main__':
