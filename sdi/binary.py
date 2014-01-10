@@ -214,10 +214,10 @@ class Dataset(object):
             post_structs.append(('gain', 'B', np.int))
             post_structs.append(('previous_offset', 'H', np.int16))
         if self.version >= '4.2':
-            post_structs.append(('antenna_e1', '4f', np.float))
-            post_structs.append(('antenna_ht', '4f', np.float))
-            post_structs.append(('draft', '4f', np.float))
-            post_structs.append(('tide', '4f', np.float))
+            post_structs.append(('antenna_e1', 'f', np.float))
+            post_structs.append(('antenna_ht', 'f', np.float))
+            post_structs.append(('draft', 'f', np.float))
+            post_structs.append(('tide', 'f', np.float))
         if self.version >= '4.3':
             post_structs.append(('gps_mode', 'b', np.int))
             post_structs.append(('hdop', 'f', np.float))
