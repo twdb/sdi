@@ -1,6 +1,7 @@
 import os
 import unittest
-from datetime import date
+from datetime import date, datetime
+import dateutil.parser
 import json
 
 import numpy as np
@@ -30,12 +31,30 @@ class TestReadMeta(unittest.TestCase):
                 'spdos': 1499.3,
                 'date': date(2008,9,18)
             },
-            '09112303.bin':{'draft': 0.46, 
-                'tide': 0.0, 
-                'spdos': 1471.0,
-                'date': date(2009,11,23)
-            },
+           '09112303.bin':{'draft': 0.46, 
+               'tide': 0.0, 
+               'spdos': 1471.0,
+               'date': date(2009,11,23)
+           },
         }
+
+        #precision of testing for float fields
+        self.precision = {
+            'num_pnt_r1': 2,
+            'tide': 2,
+            'max_window': 2,
+            'draft': 2,
+            'latitude': 6,
+            'longitude': 6,
+            'min_window': 2,
+            'min_pnt_r1': 2,
+            'kHz': 0,
+            'utm_x': 6,
+            'utm_y': 6,
+            'depth_r1': 2,
+            'pixel_resolution': 6
+        }
+
 
     def test_read_metadata_against_depthpic(self):
         """ Test that metadata matches what can be seen in DepthPic GUI. 
@@ -68,6 +87,9 @@ class TestReadMeta(unittest.TestCase):
                     jsonfile = os.path.join(root, filename.replace('.bin','.json'))
                     with open(jsonfile) as f:
                         j = json.load(f)
+
+                    j['data']['datetime'] = [dateutil.parser.parse(dt) for dt in j['data']['datetime']]
+
                     d = Dataset(os.path.join(root, filename))
                     d.parse()
 
@@ -75,6 +97,21 @@ class TestReadMeta(unittest.TestCase):
                     self.assertEqual(d.version, str(j['version']))
                     for a,b in zip(sorted(d.frequencies.keys()), sorted(j['frequencies'])):
                         self.assertAlmostEqual(a, b, places=0)
+
+                    idx = j['index']
+                    for field, value in j['data'].iteritems():
+                        print 'testing %s' % field
+                        data = d.trace_metadata[field][idx]
+                        for a,b in zip(value, data):
+                            if isinstance(a, int): 
+                                self.assertEqual(a, b)
+
+                            if isinstance(a, datetime):
+                                self.assertEqual(a, b)
+                            
+                            if isinstance(a, float):
+                                self.assertAlmostEqual(a, b, places=self.precision[field])
+
 
 
 if __name__ == '__main__':
