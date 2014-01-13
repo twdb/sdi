@@ -1,7 +1,6 @@
 import os
 import unittest
-from datetime import date, datetime
-import dateutil.parser
+from datetime import date
 import json
 
 import numpy as np
@@ -16,12 +15,12 @@ class TestReadMeta(unittest.TestCase):
     def setUp(self):
         self.test_dir = os.path.dirname(__file__)
         self.test_data = {
-           '06081001.bin':{'draft': 0.37, 
+            '06081001.bin':{'draft': 0.37, 
                 'tide': 0.0, 
                 'spdos': 1477.1,
                 'date': date(2006, 8, 10),
             },
-           '07050823.bin':{'draft': 0.40, 
+            '07050823.bin':{'draft': 0.40, 
                 'tide': 0.0, 
                 'spdos': 1492.0,
                 'date': date(2007,5,8)
@@ -31,7 +30,7 @@ class TestReadMeta(unittest.TestCase):
                 'spdos': 1499.3,
                 'date': date(2008,9,18)
             },
-           '09112303.bin':{'draft': 0.46, 
+            '09112303.bin':{'draft': 0.46, 
                'tide': 0.0, 
                'spdos': 1471.0,
                'date': date(2009,11,23)
@@ -88,7 +87,7 @@ class TestReadMeta(unittest.TestCase):
                     with open(jsonfile) as f:
                         j = json.load(f)
 
-                    j['data']['datetime'] = [dateutil.parser.parse(dt) for dt in j['data']['datetime']]
+                    j['data']['datetime'] = [np.datetime64(dt) for dt in j['data']['datetime']]
 
                     d = Dataset(os.path.join(root, filename))
                     d.parse()
@@ -106,7 +105,7 @@ class TestReadMeta(unittest.TestCase):
                             if isinstance(a, int): 
                                 self.assertEqual(a, b)
 
-                            if isinstance(a, datetime):
+                            if isinstance(a, np.datetime64):
                                 self.assertEqual(a, b)
                             
                             if isinstance(a, float):
