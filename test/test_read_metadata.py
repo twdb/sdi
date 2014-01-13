@@ -51,7 +51,8 @@ class TestReadMeta(unittest.TestCase):
             'utm_x': 6,
             'utm_y': 6,
             'depth_r1': 2,
-            'pixel_resolution': 6
+            'pixel_resolution': 6,
+            'spdos': 4, 
         }
 
 
@@ -64,7 +65,6 @@ class TestReadMeta(unittest.TestCase):
             filename = os.path.join(self.test_dir, 'files', name)
             d = read(filename)
             f200 = max(d['frequencies'].keys())
-            
             print 'testing %s against DepthPic' % (filename)
             self.assertEqual(d['date'], metadata['date'])
             self.assertAlmostEqual(np.unique(d['frequencies'][f200]['draft']), metadata['draft'], places=2)
