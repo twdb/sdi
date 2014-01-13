@@ -15,9 +15,9 @@ class TestReadMeta(unittest.TestCase):
     def setUp(self):
         self.test_dir = os.path.dirname(__file__)
         self.test_data = {
-            '06081001.bin':{'draft': 0.37, 
-                'tide': 0.0, 
-                'spdos': 1477.1,
+            '06081001.bin':{'draft': 0.37, #m
+                'tide': 0.0, #m
+                'spdos': 1477.1, #m/s
                 'date': date(2006, 8, 10),
             },
             '07050823.bin':{'draft': 0.40, 
