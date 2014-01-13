@@ -292,6 +292,9 @@ class Dataset(object):
         processed['microsecond'] = processed['centisecond'] * 10000
         processed.pop('centisecond')
 
+        # calculate pixel resolution
+        processed['pixel_resolution'] = (processed['spdos'] * 1.0)/(2*processed['rate'])
+
         return processed
 
     def _split_struct_list(self, struct_list):
