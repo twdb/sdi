@@ -242,7 +242,6 @@ class Dataset(object):
         np.arrays of uniform units (meters for distance values)
         """
         processed = {}
-
         # convert raw trace lists to arrays
         for key, value, dtype in all_structs:
             array = np.array(raw_trace[key], dtype=dtype)
@@ -253,16 +252,6 @@ class Dataset(object):
         # some keys are depreciated and overwritten in recent versions of format
         # 'draft100' and 'tide100' for example are ignored it draft and tide are 
         # present
-        for raw_key in ['min_window10', 'max_window10']:
-            array = processed.pop(raw_key)
-            new_key = raw_key[:-2]
-            processed[new_key] = array / 10.
-        for raw_key in ['draft100', 'tide100']:
-            array = processed.pop(raw_key)
-            new_key = raw_key[:-3]
-            if new_key not in raw_trace.keys():
-                processed[new_key] = array / 100.
-
         units = processed['units']
         if np.any(units > 2):
             raise NotImplementedError(
@@ -273,10 +262,21 @@ class Dataset(object):
         keys_to_convert = [
             'min_window',
             'max_window',
-            'draft',
-            'tide',
-            'display_range'
+            'display_range',
         ]
+
+        for raw_key in ['min_window10', 'max_window10']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-2]
+            processed[new_key] = array / 10.
+
+        for raw_key in ['draft100', 'tide100']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-3]
+            if new_key not in raw_trace.keys():
+                keys_to_convert.append(new_key)
+                processed[new_key] = array / 100.
+        
         for key in keys_to_convert:
             processed[key] = processed[key] * convert_to_meters
 
