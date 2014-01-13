@@ -288,14 +288,9 @@ class Dataset(object):
         convert_spdos = self.convert_to_meters_array(processed['spdos_units'])
         processed['spdos'] = processed['spdos'] * convert_spdos
 
-        # consolidate time fields into a datetime64 array
-        num_records = len(processed['hour'])
-        dates = np.resize(np.array(self.date, dtype=np.datetime64), num_records)
-        hours = processed['hour'].astype('timedelta64[h]')
-        minutes = processed['minute'].astype('timedelta64[m]')
-        seconds = processed['second'].astype('timedelta64[s]')
-        milliseconds = (processed['centisecond'] * 10.0).astype('timedelta64[ms]')
-        processed['datetime'] = dates + hours + minutes + seconds + milliseconds
+        # replace centiseconds with microseconds
+        processed['microsecond'] = processed['centisecond'] * 10000
+        processed.pop('centisecond')
 
         return processed
 
