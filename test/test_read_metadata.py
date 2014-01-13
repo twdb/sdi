@@ -53,6 +53,11 @@ class TestReadMeta(unittest.TestCase):
             'depth_r1': 2,
             'pixel_resolution': 6,
             'spdos': 4, 
+            'display_range': 2,
+            'antenna_e1': 2,
+            'antenna_ht': 2,
+            'hdop': 2,
+            'prev_offset': 2,
         }
 
 
@@ -97,7 +102,6 @@ class TestReadMeta(unittest.TestCase):
 
                     idx = j['index']
                     for field, value in j['data'].iteritems():
-                        print 'testing %s' % field
                         data = d.trace_metadata[field][idx]
                         for a,b in zip(value, data):
                             if isinstance(a, int): 
