@@ -87,8 +87,6 @@ class TestReadMeta(unittest.TestCase):
                     with open(jsonfile) as f:
                         j = json.load(f)
 
-                    j['data']['datetime'] = [np.datetime64(dt) for dt in j['data']['datetime']]
-
                     d = Dataset(os.path.join(root, filename))
                     d.parse()
 
@@ -105,9 +103,6 @@ class TestReadMeta(unittest.TestCase):
                             if isinstance(a, int): 
                                 self.assertEqual(a, b)
 
-                            if isinstance(a, np.datetime64):
-                                self.assertEqual(a, b)
-                            
                             if isinstance(a, float):
                                 self.assertAlmostEqual(a, b, places=self.precision[field])
 
