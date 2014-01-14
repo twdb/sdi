@@ -137,58 +137,58 @@ class Dataset(object):
 
     def parse_records(self, fid, data_length):
         pre_structs = [
-            ('offset', 'H', np.int),
-            ('trace_num', 'l', np.int),
-            ('units', 'B', np.int),
-            ('spdos_units', 'B', np.int),
-            ('spdos', 'h', np.int),
-            ('min_window10', 'h', np.int),
-            ('max_window10', 'h', np.int),
-            ('draft100', 'h', np.int),
-            ('tide100', 'h', np.int),
-            ('heave_cm', 'h', np.int),
-            ('display_range', 'h', np.int),
-            ('depth_r1', 'f', np.float),
-            ('min_pnt_r1', 'f', np.float),
-            ('num_pnt_r1', 'f', np.float),
-            ('blanking_pnt', 'h', np.int),
-            ('depth_pnt','h', np.int),
-            ('range_pnt','h', np.int),
-            ('num_pnts','h', np.int),
-            ('clock', 'l', np.int),
-            ('hour', 'B', np.int),
-            ('minute', 'B', np.int),
-            ('second', 'B', np.int),
-            ('centisecond', 'B', np.int),
-            ('rate', 'l', np.int),
-            ('kHz', 'f', np.float),
-            ('event_len', 'B', np.int),
+            ('offset', 'H', np.uint16),
+            ('trace_num', 'l', np.int32),
+            ('units', 'B', np.uint8),
+            ('spdos_units', 'B', np.uint8),
+            ('spdos', 'h', np.int16),
+            ('min_window10', 'h', np.int16),
+            ('max_window10', 'h', np.int16),
+            ('draft100', 'h', np.int16),
+            ('tide100', 'h', np.int16),
+            ('heave_cm', 'h', np.int16),
+            ('display_range', 'h', np.int16),
+            ('depth_r1', 'f', np.float32),
+            ('min_pnt_r1', 'f', np.float32),
+            ('num_pnt_r1', 'f', np.float32),
+            ('blanking_pnt', 'h', np.int16),
+            ('depth_pnt','h', np.int16),
+            ('range_pnt','h', np.int16),
+            ('num_pnts','h', np.int16),
+            ('clock', 'l', np.int32),
+            ('hour', 'B', np.uint8),
+            ('minute', 'B', np.uint8),
+            ('second', 'B', np.uint8),
+            ('centisecond', 'B', np.uint8),
+            ('rate', 'l', np.int32),
+            ('kHz', 'f', np.float32),
+            ('event_len', 'B', np.uint8),
         ]
         event_struct = [('event', None, None)]
         post_structs = [
             ('longitude', 'd', np.float64),
-            ('latitude', 'd', np.float),
-            ('transducer', 'B', np.int),
-            ('options', 'B', np.int),
-            ('data_offset', 'B', np.int),
+            ('latitude', 'd', np.float64),
+            ('transducer', 'B', np.uint8),
+            ('options', 'B', np.uint8),
+            ('data_offset', 'B', np.uint8),
         ]
         if self.version >= '3.3':
-            post_structs.append(('easting', 'd', np.float))
-            post_structs.append(('northing', 'd', np.float))
+            post_structs.append(('easting', 'd', np.float64))
+            post_structs.append(('northing', 'd', np.float64))
         if self.version >= '4.0':
-            post_structs.append(('cycles', 'B', np.int))
-            post_structs.append(('volts', 'B', np.int))
-            post_structs.append(('power', 'B', np.int))
-            post_structs.append(('gain', 'B', np.int))
+            post_structs.append(('cycles', 'B', np.uint8))
+            post_structs.append(('volts', 'B', np.uint8))
+            post_structs.append(('power', 'B', np.uint8))
+            post_structs.append(('gain', 'B', np.uint8))
             post_structs.append(('previous_offset', 'H', np.int16))
         if self.version >= '4.2':
-            post_structs.append(('antenna_e1', 'f', np.float))
-            post_structs.append(('antenna_ht', 'f', np.float))
-            post_structs.append(('draft', 'f', np.float))
-            post_structs.append(('tide', 'f', np.float))
+            post_structs.append(('antenna_e1', 'f', np.float32))
+            post_structs.append(('antenna_ht', 'f', np.float32))
+            post_structs.append(('draft', 'f', np.float32))
+            post_structs.append(('tide', 'f', np.float32))
         if self.version >= '4.3':
-            post_structs.append(('gps_mode', 'b', np.int))
-            post_structs.append(('hdop', 'f', np.float))
+            post_structs.append(('gps_mode', 'b', np.int16))
+            post_structs.append(('hdop', 'f', np.float32))
 
         all_structs = pre_structs + event_struct + post_structs
 
