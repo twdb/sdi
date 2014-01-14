@@ -289,7 +289,7 @@ class Dataset(object):
         processed['spdos'] = processed['spdos'] * convert_spdos
 
         # replace centiseconds with microseconds
-        processed['microsecond'] = processed['centisecond'] * 10000
+        processed['microsecond'] = processed['centisecond'].astype(np.uint32) * 10000
         processed.pop('centisecond')
 
         # calculate pixel resolution
