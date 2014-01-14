@@ -2,9 +2,9 @@ import numpy as np
 
 def read(filename):
     """
-    Reads in a DepthPic pick file and returns dict that contains
-    the surface type, the speed of sound (m/s) and an arrays of depths 
-    in meters and in pixels arranged by trace number. 
+    Reads in a DepthPic pick file and returns dict that contains the surface number, 
+    the speed of sound (m/s), draft, tide and a numpy array of depths in meters 
+    ordered by trace number. 
 
     To convert depths into pixel space use the following equation
     pixels_from_top_of_image = (depths - draft + tide)/pixel_resolution
