@@ -242,7 +242,6 @@ class Dataset(object):
         np.arrays of uniform units (meters for distance values)
         """
         processed = {}
-
         # convert raw trace lists to arrays
         for key, value, dtype in all_structs:
             array = np.array(raw_trace[key], dtype=dtype)
@@ -250,15 +249,9 @@ class Dataset(object):
 
         # convert unit-dependent fields to meters - first by converting them to
         # whole units (feet, meters, fathoms), then applying conversion factor
-        for raw_key in ['min_window10', 'max_window10']:
-            array = processed.pop(raw_key)
-            new_key = raw_key[:-2]
-            processed[new_key] = array / 10
-        for raw_key in ['draft100', 'tide100']:
-            array = processed.pop(raw_key)
-            new_key = raw_key[:-3]
-            processed[new_key] = array / 100
-
+        # some keys are depreciated and overwritten in recent versions of format
+        # 'draft100' and 'tide100' for example are ignored it draft and tide are 
+        # present
         units = processed['units']
         if np.any(units > 2):
             raise NotImplementedError(
@@ -269,10 +262,21 @@ class Dataset(object):
         keys_to_convert = [
             'min_window',
             'max_window',
-            'draft',
-            'tide',
-            'display_range'
+            'display_range',
         ]
+
+        for raw_key in ['min_window10', 'max_window10']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-2]
+            processed[new_key] = array / 10.
+
+        for raw_key in ['draft100', 'tide100']:
+            array = processed.pop(raw_key)
+            new_key = raw_key[:-3]
+            if new_key not in raw_trace.keys():
+                keys_to_convert.append(new_key)
+                processed[new_key] = array / 100.
+        
         for key in keys_to_convert:
             processed[key] = processed[key] * convert_to_meters
 
@@ -284,14 +288,12 @@ class Dataset(object):
         convert_spdos = self.convert_to_meters_array(processed['spdos_units'])
         processed['spdos'] = processed['spdos'] * convert_spdos
 
-        # consolidate time fields into a datetime64 array
-        num_records = len(processed['hour'])
-        dates = np.resize(np.array(self.date, dtype=np.datetime64), num_records)
-        hours = processed['hour'].astype('timedelta64[h]')
-        minutes = processed['minute'].astype('timedelta64[m]')
-        seconds = processed['second'].astype('timedelta64[s]')
-        milliseconds = (processed['centisecond'] * 10.0).astype('timedelta64[ms]')
-        processed['datetime'] = dates + hours + minutes + seconds + milliseconds
+        # replace centiseconds with microseconds
+        processed['microsecond'] = processed['centisecond'].astype(np.uint32) * 10000
+        processed.pop('centisecond')
+
+        # calculate pixel resolution
+        processed['pixel_resolution'] = (processed['spdos'] * 1.0)/(2*processed['rate'])
 
         return processed
 
