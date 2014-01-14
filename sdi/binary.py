@@ -173,8 +173,8 @@ class Dataset(object):
             ('data_offset', 'B', np.int),
         ]
         if self.version >= '3.3':
-            post_structs.append(('utm_x', 'd', np.float))
-            post_structs.append(('utm_y', 'd', np.float))
+            post_structs.append(('easting', 'd', np.float))
+            post_structs.append(('northing', 'd', np.float))
         if self.version >= '4.0':
             post_structs.append(('cycles', 'B', np.int))
             post_structs.append(('volts', 'B', np.int))
