@@ -21,8 +21,8 @@ class TestRead(unittest.TestCase):
                     d = Dataset(os.path.join(root, filename))
                     data = d.as_dict()
                     for freq in data['frequencies'].keys():
-                        x = data['frequencies'][freq]['utm_x']
-                        y = data['frequencies'][freq]['utm_y']
+                        x = data['frequencies'][freq]['easting']
+                        y = data['frequencies'][freq]['northing']
                         image = data['frequencies'][200.0]['intensity']
                         self.assertIsInstance(x, np.ndarray)
                         self.assertIsInstance(y, np.ndarray)
