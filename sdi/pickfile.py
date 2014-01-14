@@ -48,6 +48,6 @@ def read(filename):
         else:
             col = 2
          
-        data['depths'] = np.genfromtxt(f, usecols=[col], skiprows=3)*convert_to_meters
+        data['depths'] = np.genfromtxt(f, usecols=[col])*convert_to_meters
 
     return data
