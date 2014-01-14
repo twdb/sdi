@@ -23,7 +23,7 @@ class TestRead(unittest.TestCase):
                     for freq in data['frequencies'].keys():
                         x = data['frequencies'][freq]['utm_x']
                         y = data['frequencies'][freq]['utm_y']
-                        image = data['frequencies'][200.0]['intensity']
+                        image = data['frequencies'][freq]['intensity']
                         self.assertIsInstance(x, np.ndarray)
                         self.assertIsInstance(y, np.ndarray)
                         self.assertIsInstance(image, np.ndarray)
