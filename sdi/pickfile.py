@@ -44,10 +44,12 @@ def read(filename):
         data['flag'] = f.readline().strip('\r\n')
         position_type = f.readline().strip('\r\n') 
         if position_type=='3':
-            col = 1
+            cols = [1, 2]
         else:
-            col = 2
+            cols = [2, 3]
          
-        data['depths'] = np.genfromtxt(f, usecols=[col])*convert_to_meters
+        depth, trace_number  = np.genfromtxt(f, usecols=cols, unpack=True)
+        data['trace_number'] = trace_number.astype(np.uint32)
+        data['depth'] = depth.astype(np.float32)*convert_to_meters
 
     return data
