@@ -20,10 +20,10 @@ class TestRead(unittest.TestCase):
                 if filename.endswith('.bin'):
                     d = Dataset(os.path.join(root, filename))
                     data = d.as_dict()
-                    for freq in data['frequencies'].keys():
-                        x = data['frequencies'][freq]['easting']
-                        y = data['frequencies'][freq]['northing']
-                        image = data['frequencies'][200.0]['intensity']
+                    for freq_dict in data['frequencies']:
+                        x = freq_dict['easting']
+                        y = freq_dict['northing']
+                        image = freq_dict['intensity']
                         self.assertIsInstance(x, np.ndarray)
                         self.assertIsInstance(y, np.ndarray)
                         self.assertIsInstance(image, np.ndarray)
