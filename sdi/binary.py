@@ -32,7 +32,7 @@ class Dataset(object):
         """build clean dicts containing frequency metadata and intensity images
         for all available frequencies
         """
-        frequencies = {}
+        frequencies = []
 
         transducers = np.unique(self.trace_metadata['transducer'])
         for transducer in transducers:
@@ -53,9 +53,10 @@ class Dataset(object):
                 freq_dict[key] = array[freq_mask]
 
             freq_dict['intensity'] = self.intensity_image[freq_mask]
-            frequencies[khz] = freq_dict
+            freq_dict['kHz'] = khz
+            frequencies.append(freq_dict)
 
-        return frequencies
+        return sorted(frequencies, key=lambda d: d['kHz'])
 
     def convert_to_meters_array(self, units):
         """Given an array of unit integers, returns an array of conversion
