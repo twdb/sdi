@@ -49,7 +49,7 @@ def read(filename):
             cols = [2, 3]
          
         depth, trace_number  = np.genfromtxt(f, usecols=cols, unpack=True)
-        data['trace_number'] = trace_number.astype(np.uint32)
+        data['trace_number'] = trace_number.astype(np.int32)
         data['depth'] = depth.astype(np.float32)*convert_to_meters
 
     return data
