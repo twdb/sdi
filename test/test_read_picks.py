@@ -55,8 +55,9 @@ class TestReadMeta(unittest.TestCase):
                     self.assertAlmostEqual(data['tide'], test_data['tide'], places=4)
                     self.assertAlmostEqual(data['speed_of_sound'], test_data['speed_of_sound'], places=4)
                     self.assertEqual(data['surface_number'], surface_number)
-                    for idx, value in zip(test_data['trace_numbers'], test_data[ext+'_depths']):
-                        self.assertAlmostEqual(data['depths'][idx-1], value*test_data['convert_to_meters'])
+                    for trace_number, value in zip(test_data['trace_numbers'], test_data[ext+'_depths']):
+                        idx = np.where(data['trace_number']==trace_number)[0]
+                        self.assertAlmostEqual(data['depth'][idx], value*test_data['convert_to_meters'], places=6)
 
 
 if __name__ == '__main__':
