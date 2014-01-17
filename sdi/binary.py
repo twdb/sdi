@@ -12,8 +12,9 @@ def read(filepath):
 
 
 class Dataset(object):
-    def __init__(self, filepath):
+    def __init__(self, filepath, interp_threshold=160000):
         self.filepath = filepath
+        self.interp_threshold = interp_threshold
         self.parsed = False
 
     def as_dict(self):
@@ -82,6 +83,22 @@ class Dataset(object):
             raise NotImplementedError("Encountered unsupported units.")
 
         return convert_to_meters
+
+    def filter_easting_northing(self, original_easting, original_northing):
+        """Given an array of raw easting and northing values return a version
+        where impossibly noisey values (GPS glitches) have been removed.
+        """
+        easting = original_easting.copy()
+        northing = original_northing.copy()
+
+        easting_from_median = np.abs(easting - np.median(easting))
+        northing_from_median = np.abs(northing - np.median(northing))
+        bad_values = (easting_from_median > self.interp_threshold) | \
+            (northing_from_median > self.interp_threshold)
+
+        easting[bad_values] = np.nan
+        northing[bad_values] = np.nan
+        return easting, northing
 
     def parse(self):
         """Parse the entire file and initialize attributes"""
@@ -298,8 +315,11 @@ class Dataset(object):
 
         # interpolate easting and northing if they are available
         if 'easting' in processed and 'northing' in processed:
-            processed['interpolated_easting'] = _interpolate_repeats(processed['easting'])
-            processed['interpolated_northing'] = _interpolate_repeats(processed['northing'])
+            easting, northing = self.filter_easting_northing(
+                processed['easting'], processed['northing'])
+
+            processed['interpolated_easting'] = _interpolate_repeats(easting)
+            processed['interpolated_northing'] = _interpolate_repeats(northing)
 
         return processed
 
