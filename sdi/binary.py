@@ -348,3 +348,20 @@ def _fill_nans(lists):
     ])
 
     return array
+
+
+def _interpolate_repeats(arr):
+    """Returns an array where repeated sequential values are linearly
+    interpolated to the next non-repeated value. This is used to interpolate
+    gps track values that are repeated until the next update.
+
+    Example::
+
+        arr = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+        interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.0])
+    """
+    tmp = arr.copy()
+    tmp[1:] = arr[1:] - arr[:-1]
+    arr_index = np.nonzero(tmp)[0]
+    arr_vals = arr[arr_index]
+    return np.interp(np.arange(len(arr)), arr_index, arr_vals)
