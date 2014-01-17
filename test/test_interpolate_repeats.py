@@ -49,7 +49,7 @@ class TestInterpolateRepeats(unittest.TestCase):
             5.5,
             5.75,
             6.,
-            6.,
+            6.25,
         ], dtype=np.float32)
 
         interpolated = _interpolate_repeats(repeats)
@@ -138,7 +138,7 @@ class TestInterpolateRepeats(unittest.TestCase):
             5.,
             4.5,
             4.,
-            4.,
+            3.5,
         ], dtype=np.float32)
 
         interpolated = _interpolate_repeats(repeats)
@@ -190,9 +190,9 @@ class TestInterpolateRepeats(unittest.TestCase):
             2,
             3,
             4,
-            4,
-            4,
-            4,
+            5,
+            6,
+            7,
         ], dtype=np.float32)
 
         interpolated = _interpolate_repeats(repeats)
