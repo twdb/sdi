@@ -358,7 +358,7 @@ def _interpolate_repeats(arr):
     Example::
 
         arr = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
-        interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.0])
+        _interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.0])
     """
     filled = _fill_nans_with_last(arr)
     tmp = filled.copy()
