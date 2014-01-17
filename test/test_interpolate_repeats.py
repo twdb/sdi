@@ -102,6 +102,103 @@ class TestInterpolateRepeats(unittest.TestCase):
 
         np.testing.assert_allclose(interpolated, expected)
 
+    def test_with_nans(self):
+        """Test that _interpolate_repeats interpolates with nans.
+        """
+        repeats = np.array([
+            1,
+            1,
+            1,
+            2,
+            nan,
+            4,
+            4,
+            7,
+            7,
+            7,
+            nan,
+            nan,
+            nan,
+            4,
+            4,
+        ], dtype=np.float32)
+
+        expected = np.array([
+            1.,
+            1.33333333,
+            1.66666667,
+            2.,
+            3.,
+            4.,
+            5.5,
+            7.,
+            6.5,
+            6.,
+            5.5,
+            5.,
+            4.5,
+            4.,
+            4.,
+        ], dtype=np.float32)
+
+        interpolated = _interpolate_repeats(repeats)
+
+        np.testing.assert_allclose(interpolated, expected)
+
+    def test_with_nans_at_start(self):
+        """Test that _interpolate_repeats interpolates with nans at the start.
+        """
+        repeats = np.array([
+            nan,
+            nan,
+            nan,
+            1,
+            1,
+            1,
+            7,
+        ], dtype=np.float32)
+
+        expected = np.array([
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+        ], dtype=np.float32)
+
+        interpolated = _interpolate_repeats(repeats)
+
+        np.testing.assert_allclose(interpolated, expected)
+
+    def test_with_nans_at_end(self):
+        """Test that _interpolate_repeats interpolates with nans at the end.
+        """
+        repeats = np.array([
+            1,
+            1,
+            1,
+            4,
+            nan,
+            nan,
+            nan,
+        ], dtype=np.float32)
+
+        expected = np.array([
+            1,
+            2,
+            3,
+            4,
+            4,
+            4,
+            4,
+        ], dtype=np.float32)
+
+        interpolated = _interpolate_repeats(repeats)
+
+        np.testing.assert_allclose(interpolated, expected)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -360,8 +360,36 @@ def _interpolate_repeats(arr):
         arr = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
         interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.0])
     """
+    filled = _fill_nans_with_last(arr)
+    tmp = filled.copy()
+    tmp[1:] = filled[1:] - filled[:-1]
+    filled_index = np.nonzero(tmp)[0]
+    filled_vals = filled[filled_index]
+    return np.interp(np.arange(len(filled)), filled_index, filled_vals)
+
+
+def _fill_nans_with_last(arr):
+    """Returns an array where nan values are filled to whatever the previous
+    non-NaN value was. If the array starts with NaN values, then those will be
+    set to the first non-NaN value.
+    """
+
     tmp = arr.copy()
-    tmp[1:] = arr[1:] - arr[:-1]
-    arr_index = np.nonzero(tmp)[0]
-    arr_vals = arr[arr_index]
-    return np.interp(np.arange(len(arr)), arr_index, arr_vals)
+
+    # if the array starts with a NaN, then replace it with the first non-NaN
+    mask = np.isnan(tmp)
+    if len(tmp) == 0 or np.all(mask):
+        raise ValueError("Array must contain some non-NaN values.")
+    if mask[0]:
+        tmp[0] = tmp[~mask][0]
+
+    # there's probably a more efficient way to do this; this loops as many
+    # times as the longest string of NaNs
+    while True:
+        mask = np.isnan(tmp)
+        if not np.any(mask):
+            break
+        nan_index = np.where(mask)[0]
+        tmp[nan_index] = tmp[nan_index - 1]
+
+    return tmp
