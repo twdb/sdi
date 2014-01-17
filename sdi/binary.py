@@ -251,7 +251,7 @@ class Dataset(object):
         # convert unit-dependent fields to meters - first by converting them to
         # whole units (feet, meters, fathoms), then applying conversion factor
         # some keys are depreciated and overwritten in recent versions of format
-        # 'draft100' and 'tide100' for example are ignored it draft and tide are 
+        # 'draft100' and 'tide100' for example are ignored it draft and tide are
         # present
         units = processed['units']
         if np.any(units > 2):
@@ -277,7 +277,7 @@ class Dataset(object):
             if new_key not in raw_trace.keys():
                 keys_to_convert.append(new_key)
                 processed[new_key] = array / 100.
-        
+
         for key in keys_to_convert:
             processed[key] = processed[key] * convert_to_meters
 
@@ -294,7 +294,7 @@ class Dataset(object):
         processed.pop('centisecond')
 
         # calculate pixel resolution
-        processed['pixel_resolution'] = (processed['spdos'] * 1.0)/(2*processed['rate'])
+        processed['pixel_resolution'] = (processed['spdos'] * 1.0) / (2 * processed['rate'])
 
         return processed
 
