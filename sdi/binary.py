@@ -296,6 +296,11 @@ class Dataset(object):
         # calculate pixel resolution
         processed['pixel_resolution'] = (processed['spdos'] * 1.0) / (2 * processed['rate'])
 
+        # interpolate easting and northing if they are available
+        if 'easting' in processed and 'northing' in processed:
+            processed['interpolated_easting'] = _interpolate_repeats(processed['easting'])
+            processed['interpolated_northing'] = _interpolate_repeats(processed['northing'])
+
         return processed
 
     def _split_struct_list(self, struct_list):
@@ -381,7 +386,6 @@ def _fill_nans_with_last(arr):
     non-NaN value was. If the array starts with NaN values, then those will be
     set to the first non-NaN value.
     """
-
     tmp = arr.copy()
 
     # if the array starts with a NaN, then replace it with the first non-NaN
