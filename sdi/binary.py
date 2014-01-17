@@ -352,20 +352,28 @@ def _fill_nans(lists):
 
 def _interpolate_repeats(arr):
     """Returns an array where repeated sequential values are linearly
-    interpolated to the next non-repeated value. This is used to interpolate
-    gps track values that are repeated until the next update.
+    interpolated to the next non-repeated value. For the final values, assume
+    that linear relationship of the previous pair of points applies.  This is
+    used to interpolate gps track values that are repeated until the next
+    update.
 
     Example::
 
         arr = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
-        _interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.0])
+        _interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.5])
     """
     filled = _fill_nans_with_last(arr)
     tmp = filled.copy()
     tmp[1:] = filled[1:] - filled[:-1]
     filled_index = np.nonzero(tmp)[0]
-    filled_vals = filled[filled_index]
-    return np.interp(np.arange(len(filled)), filled_index, filled_vals)
+    filled_values = filled[filled_index]
+
+    # add one more point so final repeated values are interpolated assuming the
+    # same relationship as the last pair of values
+    filled_index = np.append(filled_index, (2 * filled_index[-1]) - filled_index[-2])
+    filled_values = np.append(filled_values, (2 * filled_values[-1]) - filled_values[-2])
+
+    return np.interp(np.arange(len(filled)), filled_index, filled_values)
 
 
 def _fill_nans_with_last(arr):
