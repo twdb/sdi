@@ -81,13 +81,14 @@ class Dataset(object):
         for unit_value, conversion_factor in units_factors.iteritems():
             convert_to_meters[units == unit_value] = conversion_factor
 
-        if np.all(convert_to_meters == 0):
-            raise NotImplementedError("Encountered unsupported units.")
-
-        if np.any(convert_to_meters == 0):
-            convert_to_meters[np.where(convert_to_meters == 0)] = convert_to_meters[np.where(convert_to_meters <> 0)][0]
-            warnings.warn("Encountered unsupported units in parts of array, replacing with units from first valid field in array")
-
+        is_zero = (convert_to_meters == 0)
+        if np.any(is_zero):
+            if len(convert_to_meters[is_zero]) < 5:
+                convert_to_meters[is_zero] = convert_to_meters[~is_zero][0]
+                warnings.warn("Encountered a few (< 5) unsupported units in units array, replacing with units from first valid field in array")
+            else:
+                raise NotImplementedError("Encountered unsupported units.")
+    
         return convert_to_meters
 
     def filter_easting_northing(self, original_easting, original_northing):
