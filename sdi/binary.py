@@ -12,8 +12,9 @@ def read(filepath):
 
 
 class Dataset(object):
-    def __init__(self, filepath):
+    def __init__(self, filepath, interp_threshold=160000):
         self.filepath = filepath
+        self.interp_threshold = interp_threshold
         self.parsed = False
 
     def as_dict(self):
@@ -82,6 +83,22 @@ class Dataset(object):
             raise NotImplementedError("Encountered unsupported units.")
 
         return convert_to_meters
+
+    def filter_easting_northing(self, original_easting, original_northing):
+        """Given an array of raw easting and northing values return a version
+        where impossibly noisey values (GPS glitches) have been removed.
+        """
+        easting = original_easting.copy()
+        northing = original_northing.copy()
+
+        easting_from_median = np.abs(easting - np.median(easting))
+        northing_from_median = np.abs(northing - np.median(northing))
+        bad_values = (easting_from_median > self.interp_threshold) | \
+            (northing_from_median > self.interp_threshold)
+
+        easting[bad_values] = np.nan
+        northing[bad_values] = np.nan
+        return easting, northing
 
     def parse(self):
         """Parse the entire file and initialize attributes"""
@@ -251,7 +268,7 @@ class Dataset(object):
         # convert unit-dependent fields to meters - first by converting them to
         # whole units (feet, meters, fathoms), then applying conversion factor
         # some keys are depreciated and overwritten in recent versions of format
-        # 'draft100' and 'tide100' for example are ignored it draft and tide are 
+        # 'draft100' and 'tide100' for example are ignored it draft and tide are
         # present
         units = processed['units']
         if np.any(units > 2):
@@ -277,7 +294,7 @@ class Dataset(object):
             if new_key not in raw_trace.keys():
                 keys_to_convert.append(new_key)
                 processed[new_key] = array / 100.
-        
+
         for key in keys_to_convert:
             processed[key] = processed[key] * convert_to_meters
 
@@ -294,7 +311,15 @@ class Dataset(object):
         processed.pop('centisecond')
 
         # calculate pixel resolution
-        processed['pixel_resolution'] = (processed['spdos'] * 1.0)/(2*processed['rate'])
+        processed['pixel_resolution'] = (processed['spdos'] * 1.0) / (2 * processed['rate'])
+
+        # interpolate easting and northing if they are available
+        if 'easting' in processed and 'northing' in processed:
+            easting, northing = self.filter_easting_northing(
+                processed['easting'], processed['northing'])
+
+            processed['interpolated_easting'] = _interpolate_repeats(easting)
+            processed['interpolated_northing'] = _interpolate_repeats(northing)
 
         return processed
 
@@ -348,3 +373,55 @@ def _fill_nans(lists):
     ])
 
     return array
+
+
+def _interpolate_repeats(arr):
+    """Returns an array where repeated sequential values are linearly
+    interpolated to the next non-repeated value. For the final values, assume
+    that linear relationship of the previous pair of points applies.  This is
+    used to interpolate gps track values that are repeated until the next
+    update.
+
+    Example::
+
+        arr = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+        _interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.5])
+    """
+    filled = _fill_nans_with_last(arr)
+    tmp = filled.copy()
+    tmp[1:] = filled[1:] - filled[:-1]
+    filled_index = np.nonzero(tmp)[0]
+    filled_values = filled[filled_index]
+
+    # add one more point so final repeated values are interpolated assuming the
+    # same relationship as the last pair of values
+    filled_index = np.append(filled_index, (2 * filled_index[-1]) - filled_index[-2])
+    filled_values = np.append(filled_values, (2 * filled_values[-1]) - filled_values[-2])
+
+    return np.interp(np.arange(len(filled)), filled_index, filled_values)
+
+
+def _fill_nans_with_last(arr):
+    """Returns an array where nan values are filled to whatever the previous
+    non-NaN value was. If the array starts with NaN values, then those will be
+    set to the first non-NaN value.
+    """
+    tmp = arr.copy()
+
+    # if the array starts with a NaN, then replace it with the first non-NaN
+    mask = np.isnan(tmp)
+    if len(tmp) == 0 or np.all(mask):
+        raise ValueError("Array must contain some non-NaN values.")
+    if mask[0]:
+        tmp[0] = tmp[~mask][0]
+
+    # there's probably a more efficient way to do this; this loops as many
+    # times as the longest string of NaNs
+    while True:
+        mask = np.isnan(tmp)
+        if not np.any(mask):
+            break
+        nan_index = np.where(mask)[0]
+        tmp[nan_index] = tmp[nan_index - 1]
+
+    return tmp
