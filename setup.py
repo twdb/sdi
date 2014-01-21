@@ -15,6 +15,7 @@ setup(
     description='A library for reading the SDI depth soundary binary format',
     long_description=__doc__,
     platforms='any',
+    license='BSD',
     install_requires=[
         'numpy>=1.7',
     ],
