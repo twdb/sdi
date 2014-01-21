@@ -5,6 +5,8 @@ from StringIO import StringIO
 
 import numpy as np
 
+import warnings
+
 
 def read(filepath):
     dataset = Dataset(filepath)
@@ -79,8 +81,12 @@ class Dataset(object):
         for unit_value, conversion_factor in units_factors.iteritems():
             convert_to_meters[units == unit_value] = conversion_factor
 
-        if np.any(convert_to_meters == 0):
+        if np.all(convert_to_meters == 0):
             raise NotImplementedError("Encountered unsupported units.")
+
+        if np.any(convert_to_meters == 0):
+            convert_to_meters[np.where(convert_to_meters == 0)] = convert_to_meters[np.where(convert_to_meters <> 0)][0]
+            warnings.warn("Encountered unsupported units in parts of array, replacing with units from first valid field in array")
 
         return convert_to_meters
 
