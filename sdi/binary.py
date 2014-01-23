@@ -260,7 +260,7 @@ class Dataset(object):
             npos = int(fid.tell())
 
         self.trace_metadata = self.process_raw_trace(raw_trace, all_structs)
-        self.intensity_image = _fill_nans(trace_intensities)
+        self.intensity_image = self._normalize_scale(_fill_nans(trace_intensities))
 
     def process_raw_trace(self, raw_trace, all_structs):
         """Clean up raw trace data - convert lists to appropriately typed
@@ -330,6 +330,46 @@ class Dataset(object):
 
         return processed
 
+    def _normalize_scale(self, intensity_image):
+        """
+        Normalize and rescale trace intensities to [0, 1]
+
+        Per Spec: Check bit zero of Options to see if the data is bipolar.  
+        If it is not set, the data is unipolar in unsigned words 0..65535  
+        If bit zero is set, some conversion is needed. Flip the high bit 
+        (bit 15) of each word to get signed bipolar smallints -32768..32767
+
+        Pascal code does not seem in step with spec. see below.
+
+        Pascal Conversion Code:
+            if(header.Version > $16) then
+            begin
+                MinValue := 32768;
+                for point := StartSample to EndSample do
+                begin
+                  if((not UNIPOL) or (header.Version >= 80)) then
+                  begin
+                    RealValue := abs(integer(RawPnts[point]) - 32768)/128;
+                  end
+                  else begin
+                    RealValue := RawPnts[point]/257.0;
+                  end;
+                  DataValue := byte(round(RealValue));
+                  NumData := NumData + 1;
+                  TraceDataP^[NumData] := DataValue;
+                  if(DataValue < MinValue) then MinValue := DataValue;
+                end;
+            end; 
+        """
+        if self.version >= '5.0':
+            return np.abs(intensity_image - np.float64(32768))/np.float64(32768)
+        else:
+            index_200khz = self.trace_metadata['transducer']==1
+            scaled_image = np.zeros_like(intensity_image)
+            scaled_image[index_200khz,:] = intensity_image[index_200khz,:]/np.float64(65535)
+            scaled_image[~index_200khz,:] = np.abs(intensity_image[~index_200khz,:] - np.float64(32768))/np.float64(32768)
+            return scaled_image
+
     def _split_struct_list(self, struct_list):
         """Helper method for splitting struct lists into components for
         processing files. Returns a tuple containing (fmt, names, size) where
@@ -352,7 +392,7 @@ def _fill_nans(lists):
     """
     # trace intensity are variable length if power changes mid-trace, so we
     # need to build a clean np-array image, filling with nans
-    lengths = np.array([len(i) for i in lists])
+    lengths = np.array([len(i) for i in lists], dtype=np.float64)
 
     # find discontinuities
     discontinuities, = np.nonzero(lengths[1:] - lengths[:-1])
