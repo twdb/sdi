@@ -332,6 +332,8 @@ class Dataset(object):
 
     def _normalize_scale(self, intensity_image):
         """
+        Normalize and rescale trace intensities to [0, 1]
+
         Per Spec: Check bit zero of Options to see if the data is bipolar.  
         If it is not set, the data is unipolar in unsigned words 0..65535  
         If bit zero is set, some conversion is needed. Flip the high bit 
