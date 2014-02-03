@@ -20,6 +20,190 @@ class Dataset(object):
         self.parsed = False
 
     def as_dict(self, separate=True):
+        """Returns the SDI data as a dict. Data is collected and stored in the
+        binary file as a sequence of traces, cycling between sampling
+        frequencies. Each vertical column of intensity data is a trace and has
+        various other readings stored along with it. If the `separate` keyword
+        is True (default), then the data for each frequency will be split into
+        distinct frequencies which will be a list of frequency dicts in the
+        mapped to the 'frequencies' key. If `separate` is False, then data
+        will be interleaved in the same way that it is collected and stored in
+        the binary file format. The keys are as follows (note that not all
+        fields will be available, depending on binary file version number):
+
+        File-wide information:
+            'date':
+                The date that the survey file was collected. This is derived
+                from the first digits of the filename, which is how the
+                instruments record the date.
+            'file_version':
+                Version of the SDI binary file format.
+            'filepath':
+                The path to the SDI binary file.
+            'survey_line_number':
+                The line number that this file represents. This is derived from
+                the filename.
+
+        Trace-level information:
+            'antenna_e1':
+                Meters above the geoid. As from Hgt field of NMEA GGA log or
+                calculated from HyPack. Only available in versions >= '4.2'
+            'antenna_r1':
+                Meters above the water line. Set by the user. Only available
+                in versions >= '4.2'
+            'blanking_pnt':
+                Search for bottom must start after this data point.
+            'clock':
+                4 byte PC clock tick count since midnight. 1193180/65536 ticks
+                per second.
+            'cycles':
+                Commanded In the output pulse train. Results may vary,
+                depending on the hardware. Only available in versions >= '4.0'
+            'data_offset':
+                This is normally zero or one. Indicates sampling of the start
+                of the output pulse was delayed by this many samples.
+            'depth_pnt':
+                Index of DepthRl in data array.
+            'depth_r1':
+                In meters below mean water level. In versions <= 4.1 was below
+                geoid.
+            'display_range':
+                Maximum depth displayable, In meters. I.e. transducer range +
+                Draft.
+            'draft':
+                Water line to transducer, in meters. Versions >= 4.2 should use
+                Draft.
+            'easting':
+                Values of x in the coordinate reference system that the data
+                was was configured for at the time of collection. Values are
+                repeated until the instrumentation's attached GPS unit updates
+                its coordinates. For an interpolated approximation of repeated
+                values, see 'interpolated_easting'. Only available in
+                versions >= '3.3'
+            'event':
+                This is as if EventLen is a ShortString with the extra chars
+                truncated. The first event will have 'Recording ' plus the
+                Filename field. Stores HyPack event numbers as well as user
+                commemts.
+            'event_len':
+                Zero to a maximum of 31. If zero, the event field is not
+                present.
+            'gain':
+                0..7 Only available in versions >= '4.0'
+            'gps_mode':
+                From HyPack or NMEA GGA, PRTKA or GLL logs. -1 if not
+                received, timed out or field = ''. Only available in
+                versions >= '4.3'
+            'hdop':
+                Horizontal Dilution Of Precision in meters. -1 if invalid.
+                Only available in versions >= '4.3'
+            'heave':
+                If a heave sensor is available and calibrated with the
+                instrumentation, this value represents amount of vertical lift
+                the boat is experiencing during the moment the trace is
+                recorded.
+            'hour':
+                Derived from the clock value.
+            'intensity':
+                Recorded intensity values
+            'interpolated_easting':
+                Values of x in the coordinate reference system that the data
+                was was configured for at the time of collection. These values
+                are an interpolated approximation of raw easting values
+                repeated until the instrumentation's attached GPS unit updates
+                its coordinates. For the raw, repeated values see 'easting'.
+                Only available in versions >= '3.3'
+            'interpolated_northing':
+                Values of y in the coordinate reference system that the data
+                was was configured for at the time of collection. These values
+                are an interpolated approximation of raw northing values
+                repeated until the instrumentation's attached GPS unit updates
+                its coordinates. For the raw, repeated values see 'northing'.
+                Only available in versions >= '3.3'
+            'kHz':
+                If separate == True, then this will be a single value.
+                Otherwise, it will be an array.
+            'latitude':
+                Latitude in the WGS84 coordinate reference system. Values are
+                repeated until the instrumentation's attached GPS unit updates
+                its coordinates. See also northing and interpolated_northing.
+                Only available in versions >= '3.0'
+            'longitude':
+                Longitude in the WGS84 coordinate reference system. Values are
+                repeated until the instrumentation's attached GPS unit updates
+                its coordinates. See also easting and interpolated_easting.
+                Only available in versions >= '3.0'
+            'max_window':
+                Bottom of windowed depth the user viewed while recording data.
+                In meters. See MinPntRl and NumPntRl.
+            'microsecond':
+                Derived from the clock value.
+            'min_pnt_r1':
+                Index into zero based data array of window top - can start, end
+                at fraction.
+            'min_window':
+                Top of windowed depth the user viewed while recording data. In
+                Meters. See MinPntRl.
+            'minute':
+                Derived from the clock value.
+            'northing':
+                Values of y in the coordinate reference system that the data
+                was configured for at the time of collection. Values are
+                repeated until the instrumentation's attached GPS unit updates
+                its coordinates. For an interpolated approximation of repeated
+                values, see 'interpolated_northing'. Only available in
+                versions >= '3.3'
+            'num_pnt_r1':
+                Number of data points in window - can start, end at fraction
+            'num_pnts':
+                Number of 16 bit data points in the array. RangePnt + 2 m (1 m
+                after ver 3.1?)
+            'offset':
+                DataPos = File position (after reading Offset) + Offset. After
+                reading the Record Header, seek to the DataPos for forward
+                compatibility with later versions. Only available in
+                versions >= '3.1'.
+            'options':
+                1=Bipolar: ver <= 1.6 = 0, 2= Latitude has Y, Longitude has X:
+                ver < 3.3, 4=Rtk mode. Only available in versions >= '3.1'.
+            'previous_offset':
+                The size of the previous record in bytes. Not currently
+                utilized. Only available in versions >= '4.0'
+            'pixel_resolution':
+                Derived vertical resolution of a single pixel, in meters. Based
+                on rate and speed of sound.
+            'power':
+                0..3 or 0..7 Only available in versions >= '4.0'
+            'range_pnt':
+                Search for bottom will not go past this point.
+            'rate':
+                A/D samples per second. In versions <= 1.6 this field was not
+                present, set to 25000.
+            'second':
+                Derived from the clock value.
+            'spdos':
+                Speed of sound, in meters per second.
+            'spdos_units':
+                Original units that speed of sound was set with before
+                converting to meters. 0 = feet, 1 = meters.
+            'tide':
+                Mean water line - geoid, in meters. Versions >= 4.2 should use
+                Tide.
+            'trace_num':
+                Sequential record number within this file, starting at 1.
+            'transducer':
+                1..5 in order of frequency (bottom to sub-bottom). For example:
+                1 = 200kHz, 5 = 3.5kHz. Only available in versions >= '3.1'.
+                If an earlier version is being read, Transducer should be
+                inferred from kHz.
+            'units':
+                Field that represents the units that the data originally was
+                recorded in: 0 = feet, 1 = meters, 2 = fathoms. Note that
+                values have been normalized SI units as described.
+            'volts':
+                Max volts 0=10, 1=5, 2=2.5, 3=1.25 volts. Min depends on
+                Bipolar bit in Options. Only available in versions >= '4.0'
+        """
         if not self.parsed:
             self.parse()
 
