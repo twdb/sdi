@@ -8,9 +8,9 @@ import numpy as np
 import warnings
 
 
-def read(filepath):
+def read(filepath, separate=True):
     dataset = Dataset(filepath)
-    return dataset.as_dict()
+    return dataset.as_dict(separate=separate)
 
 
 class Dataset(object):
@@ -19,17 +19,24 @@ class Dataset(object):
         self.interp_threshold = interp_threshold
         self.parsed = False
 
-    def as_dict(self):
+    def as_dict(self, separate=True):
         if not self.parsed:
             self.parse()
 
-        return {
+        d = {
             'date': self.date,
             'filepath': self.filepath,
             'file_version': self.version,
-            'frequencies': self.frequencies,
             'survey_line_number': self.survey_line_number,
         }
+
+        if separate:
+            d['frequencies'] = self.frequencies
+        else:
+            d['intensity'] = self.intensity_image
+            for key, array in self.trace_metadata.iteritems():
+                d[key] = array
+        return d
 
     def assemble_frequencies(self):
         """build clean dicts containing frequency metadata and intensity images
