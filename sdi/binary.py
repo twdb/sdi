@@ -88,7 +88,7 @@ class Dataset(object):
                 warnings.warn("Encountered a few (< 5) unsupported units in units array, replacing with units from first valid field in array")
             else:
                 raise NotImplementedError("Encountered unsupported units.")
-    
+
         return convert_to_meters
 
     def filter_easting_northing(self, original_easting, original_northing):
@@ -334,9 +334,9 @@ class Dataset(object):
         """
         Normalize and rescale trace intensities to [0, 1]
 
-        Per Spec: Check bit zero of Options to see if the data is bipolar.  
-        If it is not set, the data is unipolar in unsigned words 0..65535  
-        If bit zero is set, some conversion is needed. Flip the high bit 
+        Per Spec: Check bit zero of Options to see if the data is bipolar.
+        If it is not set, the data is unipolar in unsigned words 0..65535
+        If bit zero is set, some conversion is needed. Flip the high bit
         (bit 15) of each word to get signed bipolar smallints -32768..32767
 
         Pascal code does not seem in step with spec. see below.
@@ -359,7 +359,7 @@ class Dataset(object):
                   TraceDataP^[NumData] := DataValue;
                   if(DataValue < MinValue) then MinValue := DataValue;
                 end;
-            end; 
+            end;
         """
         if self.version >= '5.0':
             return np.abs(intensity_image - np.float64(32768))/np.float64(32768)
