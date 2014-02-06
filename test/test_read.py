@@ -49,6 +49,18 @@ class TestRead(unittest.TestCase):
         d = Dataset(filename)
         data = d.as_dict()
 
+    def test_separate_false(self):
+        """ Test that separate=False works as expected
+        """
+        filename = os.path.join(self.test_dir, 'files', '07050823.bin')
+        d = Dataset(filename)
+        data = d.as_dict(separate=False)
+
+        assert 'frequencies' not in data
+        self.assertIsInstance(data['intensity'], np.ndarray)
+        self.assertIsInstance(data['interpolated_easting'], np.ndarray)
+        assert len(data['transducer']) == 3995
+        assert len(np.unique(data['kHz'])) == 3
 
 if __name__ == '__main__':
     unittest.main()
