@@ -2,10 +2,9 @@ from datetime import datetime
 import itertools
 import struct
 from StringIO import StringIO
+import warnings
 
 import numpy as np
-
-import warnings
 
 
 def read(filepath, separate=True):
