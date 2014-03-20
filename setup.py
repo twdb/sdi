@@ -4,7 +4,7 @@ sdi
 
 Reader for Speciality Devices Incorporated (SDI) depth sounder binary format
 """
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='sdi',
@@ -26,4 +26,5 @@ setup(
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
+    packages=find_packages()
 )
