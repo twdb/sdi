@@ -605,7 +605,7 @@ def _fill_nans(lists):
 
     max_length = np.max(lengths)
     array = np.vstack([
-        _padded_sub_array(lists, start, end, max_length)
+        _padded_sub_array(lists, start, end, int(max_length))
         for start, end in zip(starts, ends)
     ])
 
