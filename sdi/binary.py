@@ -13,9 +13,10 @@ def read(filepath, separate=True):
 
 
 class Dataset(object):
-    def __init__(self, filepath, interp_threshold=160000):
+    def __init__(self, filepath, interp_east_north_threshold=160000, interp_lat_long_threshold=0.5):
         self.filepath = filepath
-        self.interp_threshold = interp_threshold
+        self.interp_east_north_threshold = interp_east_north_threshold
+        self.interp_lat_long_threshold = interp_lat_long_threshold
         self.parsed = False
 
     def as_dict(self, separate=True):
@@ -109,16 +110,30 @@ class Dataset(object):
                 Values of x in the coordinate reference system that the data
                 was was configured for at the time of collection. These values
                 are an interpolated approximation of raw easting values
+                that are repeated until the instrumentation's attached GPS unit
+                updates its coordinates. For the raw, repeated values see
+                'easting'.  Only available in versions >= '3.3'
+            'interpolated_latitude':
+                Latitude in the WGS84 coordinate reference system.  These
+                values are an interpolated approximation of raw latitude values
                 repeated until the instrumentation's attached GPS unit updates
-                its coordinates. For the raw, repeated values see 'easting'.
-                Only available in versions >= '3.3'
+                its coordinates. These are also . For the raw, repeated values
+                see 'latitude'.  See also northing and interpolated_northing.
+                Only available in versions >= '3.0'
+            'interpolated_longitude':
+                Longitude in the WGS84 coordinate reference system. These
+                values are an interpolated approximation of raw longitude
+                values that are repeated until the instrumentation's attached
+                GPS unit updates its coordinates. For the raw, repeated values
+                see 'longitude'. See also easting and interpolated_easting.
+                Only available in versions >= '3.0'
             'interpolated_northing':
                 Values of y in the coordinate reference system that the data
                 was was configured for at the time of collection. These values
-                are an interpolated approximation of raw northing values
-                repeated until the instrumentation's attached GPS unit updates
-                its coordinates. For the raw, repeated values see 'northing'.
-                Only available in versions >= '3.3'
+                are an interpolated approximation of raw northing values that
+                are repeated until the instrumentation's attached GPS unit
+                updates its coordinates. For the raw, repeated values see
+                'northing'.  Only available in versions >= '3.3'
             'kHz':
                 If separate == True, then this will be a single value.
                 Otherwise, it will be an array.
@@ -281,21 +296,31 @@ class Dataset(object):
 
         return convert_to_meters
 
-    def filter_easting_northing(self, original_easting, original_northing):
-        """Given an array of raw easting and northing values return a version
+    def filter_x_and_y(self, original_x, original_y, threshold):
+        """Given an array of raw x and y values return a version
         where impossibly noisey values (GPS glitches) have been removed.
         """
-        easting = original_easting.copy()
-        northing = original_northing.copy()
+        x = original_x.copy()
+        y = original_y.copy()
 
-        easting_from_median = np.abs(easting - np.median(easting))
-        northing_from_median = np.abs(northing - np.median(northing))
-        bad_values = (easting_from_median > self.interp_threshold) | \
-            (northing_from_median > self.interp_threshold)
+        x_from_median = np.abs(x - np.median(x))
+        y_from_median = np.abs(y - np.median(y))
+        bad_values = (x_from_median > threshold) | \
+            (y_from_median > threshold)
 
-        easting[bad_values] = np.nan
-        northing[bad_values] = np.nan
-        return easting, northing
+        x[bad_values] = np.nan
+        y[bad_values] = np.nan
+        return x, y
+
+    def interpolate_xy(self, processed, x_key, y_key, threshold):
+        if x_key in processed and y_key in processed:
+            x, y = self.filter_x_and_y(
+                processed[x_key], processed[y_key], self.interp_east_north_threshold)
+
+            processed['interpolated_' + x_key] = _interpolate_repeats(x)
+            processed['interpolated_' + y_key] = _interpolate_repeats(y)
+
+        return processed
 
     def parse(self):
         """Parse the entire file and initialize attributes"""
@@ -511,12 +536,8 @@ class Dataset(object):
         processed['pixel_resolution'] = (processed['spdos'] * 1.0) / (2 * processed['rate'])
 
         # interpolate easting and northing if they are available
-        if 'easting' in processed and 'northing' in processed:
-            easting, northing = self.filter_easting_northing(
-                processed['easting'], processed['northing'])
-
-            processed['interpolated_easting'] = _interpolate_repeats(easting)
-            processed['interpolated_northing'] = _interpolate_repeats(northing)
+        self.interpolate_xy(processed, 'easting', 'northing', self.interp_east_north_threshold)
+        self.interpolate_xy(processed, 'longitude', 'latitude', self.interp_lat_long_threshold)
 
         return processed
 
@@ -605,7 +626,7 @@ def _fill_nans(lists):
 
     max_length = np.max(lengths)
     array = np.vstack([
-        _padded_sub_array(lists, start, end, max_length)
+        _padded_sub_array(lists, start, end, int(max_length))
         for start, end in zip(starts, ends)
     ])
 
