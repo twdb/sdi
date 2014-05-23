@@ -13,10 +13,8 @@ def read(filepath, separate=True):
 
 
 class Dataset(object):
-    def __init__(self, filepath, interp_east_north_threshold=160000, interp_lat_long_threshold=0.5):
+    def __init__(self, filepath):
         self.filepath = filepath
-        self.interp_east_north_threshold = interp_east_north_threshold
-        self.interp_lat_long_threshold = interp_lat_long_threshold
         self.parsed = False
 
     def as_dict(self, separate=True):
@@ -296,31 +294,39 @@ class Dataset(object):
 
         return convert_to_meters
 
-    def filter_x_and_y(self, original_x, original_y, threshold):
+    def filter_x_and_y(self, original_x, original_y):
         """Given an array of raw x and y values return a version
         where impossibly noisey values (GPS glitches) have been removed.
         """
-        x = original_x.copy()
-        y = original_y.copy()
+        _, x_dedup_idx = _deduplicate(original_x)
+        _, y_dedup_idx = _deduplicate(original_y)
 
-        x_from_median = np.abs(x - np.median(x))
-        y_from_median = np.abs(y - np.median(y))
-        bad_values = (x_from_median > threshold) | \
-            (y_from_median > threshold)
+        dedup_idx = np.unique(np.hstack([x_dedup_idx, y_dedup_idx]))
+        x = original_x.copy()[dedup_idx]
+        y = original_y.copy()[dedup_idx]
 
-        x[bad_values] = np.nan
-        y[bad_values] = np.nan
-        return x, y
+        x_out = np.abs(x - np.median(x)) > 5 * x.std()
+        y_out = np.abs(y - np.median(y)) > 5 * y.std()
 
-    def interpolate_xy(self, processed, x_key, y_key, threshold):
-        if x_key in processed and y_key in processed:
-            x, y = self.filter_x_and_y(
-                processed[x_key], processed[y_key], self.interp_east_north_threshold)
+        out_mask = x_out + y_out
 
-            processed['interpolated_' + x_key] = _interpolate_repeats(x)
-            processed['interpolated_' + y_key] = _interpolate_repeats(y)
+        good_x = original_x.copy()
+        good_y = original_y.copy()
 
-        return processed
+        if np.any(out_mask):
+            nan_mask = (good_x == x[out_mask]) + (good_y == y[out_mask])
+            good_x[nan_mask] = np.nan
+            good_y[nan_mask] = np.nan
+
+            good_x = _fill_nans_with_last(good_x)
+            good_y = _fill_nans_with_last(good_y)
+
+            # call this recursively, because outliers can be so crazy that std
+            # is skewed so much that multiple passes are necessary
+            good_x, good_y = self.filter_x_and_y(good_x, good_y)
+
+        return good_x, good_y
+
 
     def parse(self):
         """Parse the entire file and initialize attributes"""
@@ -535,9 +541,18 @@ class Dataset(object):
         # calculate pixel resolution
         processed['pixel_resolution'] = (processed['spdos'] * 1.0) / (2 * processed['rate'])
 
-        # interpolate easting and northing if they are available
-        self.interpolate_xy(processed, 'easting', 'northing', self.interp_east_north_threshold)
-        self.interpolate_xy(processed, 'longitude', 'latitude', self.interp_lat_long_threshold)
+        for x_key, y_key in [('longitude', 'latitude'), ('easting', 'northing')]:
+            if x_key in processed and y_key in processed:
+                # filter out bad values
+                x, y = self.filter_x_and_y(
+                    processed[x_key], processed[y_key])
+
+                processed[x_key] = x
+                processed[y_key] = y
+
+                # interpolate values
+                processed['interpolated_' + x_key] = _interpolate_repeats(x)
+                processed['interpolated_' + y_key] = _interpolate_repeats(y)
 
         return processed
 
@@ -596,6 +611,18 @@ class Dataset(object):
         return fmt, names, size
 
 
+def _deduplicate(arr):
+    """given an array, returns a tuple containing values that are not repeated
+    and the indexes to those values from the original array
+    """
+    tmp = arr.copy()
+    tmp[1:] = arr[1:] - arr[:-1]
+    arr_index = np.nonzero(tmp)[0]
+    arr_values = arr[arr_index]
+
+    return arr_values, arr_index
+
+
 def _fill_nans(lists):
     """take list of variable-length lists of floats and convert to a np.array
     of shape (len(lists), max_length), padding any row that is less than
@@ -646,10 +673,7 @@ def _interpolate_repeats(arr):
         _interpolate_repeats(arr) == np.array([ 1.0, 1.33333333, 1.66666667, 2.,  2.5, 3.0, 3.5])
     """
     filled = _fill_nans_with_last(arr)
-    tmp = filled.copy()
-    tmp[1:] = filled[1:] - filled[:-1]
-    filled_index = np.nonzero(tmp)[0]
-    filled_values = filled[filled_index]
+    filled_values, filled_index = _deduplicate(filled)
 
     # add one more point so final repeated values are interpolated assuming the
     # same relationship as the last pair of values
