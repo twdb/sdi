@@ -5,6 +5,7 @@ from StringIO import StringIO
 import warnings
 
 import numpy as np
+from statsmodels.formula.api import ols
 
 
 def read(filepath, separate=True):
@@ -305,10 +306,14 @@ class Dataset(object):
         x = original_x.copy()[dedup_idx]
         y = original_y.copy()[dedup_idx]
 
-        x_out = np.abs(x - np.median(x)) > 5 * x.std()
-        y_out = np.abs(y - np.median(y)) > 5 * y.std()
+        # run linear regressions on x and y and filter out values whose
+        # residuals are not within 10 std deviations of other residuals
+        x_reg = ols("data ~ x", data=dict(data=y, x=x)).fit()
+        y_reg = ols("data ~ y", data=dict(data=x, y=y)).fit()
+        x_out = x_reg.resid > 10 * x_reg.resid.std()
+        y_out = y_reg.resid > 10 * y_reg.resid.std()
 
-        out_mask = x_out + y_out
+        out_mask = np.array(x_out + y_out)
 
         good_x = original_x.copy()
         good_y = original_y.copy()
