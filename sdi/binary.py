@@ -321,8 +321,8 @@ class Dataset(object):
             good_x = _fill_nans_with_last(good_x)
             good_y = _fill_nans_with_last(good_y)
 
-            # call this recursively, because outliers can be so crazy that std
-            # is skewed so much that multiple passes are necessary
+            # call this recursively, because outliers can be so extreme that
+            # multiple passes are necessary
             good_x, good_y = self.filter_x_and_y(good_x, good_y)
 
         return good_x, good_y
