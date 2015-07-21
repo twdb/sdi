@@ -3,8 +3,8 @@ def read(filename):
     Reads in a corestick file and returns a dictionary keyed by core_id.
     Layer interface depths are positive and are relative to the lake bottom.
     depths are returned in meters. Northing and Easting are typically in the
-    coordinate system used in the rest of the lake survey. We ignore the display
-    related color and width fields in the file.
+    coordinate system used in the rest of the lake survey. We ignore the
+    width fields in the file.
     """
 
     cores = {}
@@ -30,6 +30,7 @@ def read(filename):
                 float(fields[i]) * conv_factor
                 for i in range(5, len(fields), 4)
             ]
+            data['layer_colors'] = [i for i in range(6, len(fields), 4)]
             cores[core_id] = data
 
     return cores
