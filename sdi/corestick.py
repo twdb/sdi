@@ -30,7 +30,8 @@ def read(filename):
                 float(fields[i]) * conv_factor
                 for i in range(5, len(fields), 4)
             ]
-            data['layer_colors'] = [i for i in range(6, len(fields), 4)]
+            data['layer_colors'] = [
+                int(fields[i]) for i in range(6, len(fields), 4)]
             cores[core_id] = data
 
     return cores
