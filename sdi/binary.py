@@ -677,8 +677,13 @@ def _interpolate_repeats(arr):
 
     # add one more point so final repeated values are interpolated assuming the
     # same relationship as the last pair of values
-    filled_index = np.append(filled_index, (2 * filled_index[-1]) - filled_index[-2])
-    filled_values = np.append(filled_values, (2 * filled_values[-1]) - filled_values[-2])
+    if len(filled_index) > 1:
+        filled_index = np.append(filled_index, (2 * filled_index[-1]) - filled_index[-2])
+        filled_values = np.append(filled_values, (2 * filled_values[-1]) - filled_values[-2])
+    else:
+        filled_index = np.append(filled_index, (2 * filled_index[-1]))
+        filled_values = np.append(filled_values, (2 * filled_values[-1]))
+
 
     return np.interp(np.arange(len(filled)), filled_index, filled_values)
 
