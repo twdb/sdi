@@ -16,9 +16,6 @@ setup(
     long_description=__doc__,
     platforms='any',
     license='BSD',
-    install_requires=[
-        'numpy>=1.7',
-    ],
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Science/Research',
