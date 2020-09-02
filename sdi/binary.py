@@ -328,7 +328,7 @@ class Dataset(object):
         return good_x, good_y
 
 
-    def parse(self):
+    def parse(self, file_format='bin'):
         """Parse the entire file and initialize attributes"""
         with open(self.filepath, 'rb') as f:
             data = f.read()
@@ -336,17 +336,22 @@ class Dataset(object):
         fid = StringIO(data)
         data_length = len(data)
 
-        header = self.parse_file_header(fid)
-
-        self.version = header['version']
-        self.resolution_cm = header['resolution_cm']
-        self.survey_line_number = header['filename']
-        self.date = datetime.strptime(self.survey_line_number[:6], '%y%m%d').date()
-
-        self.parse_records(fid, data_length)
+        if file_format == 'bin':
+            header = self.parse_file_header(fid)
+            self.version = header['version']
+            self.survey_line_number = header['filename']
+            header = self.parse_file_header(fid)
+            self.resolution_cm = header['resolution_cm']
+            self.date = datetime.strptime(
+                self.survey_line_number[:6], '%y%m%d').date()
+            self.parse_records(fid, data_length)
+        elif file_format == 'bss':
+            header = self.parser_bss_file_header(fid)
+            self.version = header['version']
+            self.survey_line_number = header['filename']
+            self.parse_bss_records()
 
         self.frequencies = self.assemble_frequencies()
-
         self.parsed = True
 
     def parse_file_header(self, f):
@@ -379,6 +384,31 @@ class Dataset(object):
             'filename': filename,
             'version': version,
             'resolution_cm': resolution_cm,
+        }
+
+    def parse_bss_file_header(self, f):
+        """
+        Reads in file header information. Based on the specification:
+            Offset Size          File Header
+
+         66      64   Filename           TBssString  Original filename if possible, no path
+        130       2   FileNumber         U16     1 is first file of the day
+        132       2   FileVersion,       TVer    This TBssHeader, TBssRec version - 1000 = 1.0.0
+        """
+
+        f.seek(66)
+
+        filename = struct.unpack('<64s', f.read(64)).decode('utf16')
+        file_version = struct.unpack('<H', f.read(2))
+        file_number = struct.unpack('<H', f.read(2))
+        
+        f.seek(170)
+        self.units = struct.unpack('<B', f.read(1))
+
+        return {
+            'filename': filename,
+            'version': file_version,
+            'file_number': file_number,
         }
 
     def parse_records(self, fid, data_length):
@@ -480,8 +510,94 @@ class Dataset(object):
             trace_intensities.append(intensity)
             npos = int(fid.tell())
 
+        self.intensities = trace_intensities
         self.trace_metadata = self.process_raw_trace(raw_trace, all_structs)
         self.intensity_image = self._normalize_scale(_fill_nans(trace_intensities))
+
+    def parse_bss_records(self):
+        with open(self.filepath, 'rb') as f:
+            data = f.read()
+
+        fid = StringIO(data)
+        data_length = len(data)
+        self.version = 1000
+
+        rec_structs = [
+            ('bss_size', 'H', np.uint32),
+            ('prev_record_size', 'L', np.uint32),
+            ('num_pnts', 'L', np.uint32),
+            ('time_tag', 'd', np.float32),
+            ('trace_num', 'L', np.uint32),
+            ('rate', 'L', np.uint32),
+            ('transducer', 'B', np.uint8),
+            ('bipolar', '?', np.bool_),
+            ('sats', 'b', np.int8),
+            ('hpr_status', 'B', np.uint8),
+            ('heave', 'f', np.float32),
+            ('pitch', 'f', np.float32),
+            ('roll', 'f', np.float32),
+            ('heading', 'f', np.float32),
+            ('course', 'f', np.float32),
+            ('kHz', 'f', np.float32),
+            ('draft', 'f', np.float32),
+            ('tide', 'f', np.float32),
+            ('antenna_el', 'f', np.float32),
+            ('blanking', 'f', np.float32),
+            ('window_min', 'f', np.float32),
+            ('window_max', 'f', np.float32),
+            ('xd_range', 'f', np.float32),
+            ('depth_r1', 'f', np.float32),
+            ('depth_r2', 'f', np.float32),
+            ('depth_r3', 'f', np.float32),
+            ('depth_r4', 'f', np.float32),
+            ('depth_r5', 'f', np.float32),
+            ('volts', 'f', np.float32),
+            ('longitude', 'd', np.float32),
+            ('latitude', 'd', np.float32),
+            ('x', 'd', np.float32),
+            ('y', 'd', np.float32),
+            ('hdop', 'f', np.float32),
+            ('cycles', 'b', np.int8),
+            ('power', 'b', np.int8),
+            ('gain', 'b', np.int8),
+            ('gps_mode', 'b', np.int8),
+            ('comment', '64s', np.string_),
+            ('select', 'B', np.uint8),
+            ('channel', 'B', np.uint8),
+
+        ]
+
+        # intitialize dict of trace elements
+        raw_trace = dict([
+            [name, []] for name, fmt, dtype in rec_structs
+        ])
+
+        trace_intensities = []
+
+        fmt, names, size = self._split_struct_list(rec_structs)
+        npos = 372
+        fid.seek(npos)
+        while npos < data_length:
+            record = struct.unpack(fmt, fid.read(size))
+            record_dict = dict(zip(names, record))
+            for key, value in record_dict.iteritems():
+                raw_trace[key].append(value)
+
+            fid.seek(int(fid.tell()) + 6)
+
+            data_size = record_dict['num_pnts']
+            intensity = struct.unpack(
+                '<' + str(data_size) + 'h', fid.read(data_size * 2))
+            trace_intensities.append(intensity)
+            npos = int(fid.tell())
+            self.raw_trace = raw_trace
+            self.intensity = intensity
+
+        # self.trace_metadata = self.process_raw_trace(raw_trace, rec_structs)
+        self.intensities = trace_intensities
+        self.raw_trace = raw_trace
+        self.intensity_image = self._normalize_scale(
+            _fill_nans(trace_intensities))
 
     def process_raw_trace(self, raw_trace, all_structs):
         """Clean up raw trace data - convert lists to appropriately typed
@@ -498,7 +614,7 @@ class Dataset(object):
         # some keys are depreciated and overwritten in recent versions of format
         # 'draft100' and 'tide100' for example are ignored it draft and tide are
         # present
-        units = processed['units']
+        units = processed.get('units', 0)
         if np.any(units > 2):
             raise NotImplementedError(
                 'This sdi file contains unsupported units.',
@@ -590,7 +706,7 @@ class Dataset(object):
         if self.version >= '5.0':
             return np.abs(intensity_image - np.float64(32768))/np.float64(32768)
         else:
-            index_200khz = self.trace_metadata['transducer']==1
+            index_200khz = self.raw_trace['transducer']==1
             scaled_image = np.zeros_like(intensity_image)
             scaled_image[index_200khz,:] = intensity_image[index_200khz,:]/np.float64(65535)
             scaled_image[~index_200khz,:] = np.abs(intensity_image[~index_200khz,:] - np.float64(32768))/np.float64(32768)

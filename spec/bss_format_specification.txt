@@ -1,0 +1,269 @@
+
+Specialty Devices, Inc. 3/25/16 by Larry Higley
+
+Some comments changed 10:30 AM 2/20/2020
+
+ Uses little endian byte ordering
+
+ All distances are in meters
+
+ arrays have used positions moved to the beginning - Rates, kHz, DepthBT 
+ Indexes for these arrays refer to these compacted positions - PrimaryTrans, SecondaryTrans, Transducer
+
+ PrimaryTrans and SecondaryTrans will override any setting of TBssRec.Select 
+
+ TXYRect - record Left, Top, Right, Bottom of double
+
+ TBssString - 64 bytes of null terminated Unicode 1.0. This is UCS-2LE or UTF-16LE without surrogates.
+
+ TVer - U16 version number where Major is thousands, Minor is hundreds, Revision is ones. 
+
+ Timetag - double is in days since midnight 12/30/1899 local time. Fraction is part of a day since midnight. 
+
+ Bool is written with false = 0, true = 1.  But read with C method where true = any non-zero value
+
+ Types with numbers show the number of bits.
+
+ SdiDepth and SmartSurvey can read files up to 4 GB.  While some previous files approach that size, newly written
+files should not exceed 2 GB, since many EOF, seek and file position language implementations return signed numbers.
+
+
+Offset | Size | Identifier    | Type    | Comment
+bytes  | bytes|               |         |
+
+Preamble
+
+   0      2    HeaderSize         U16     The size of the following record. For file version 1.0 = 370
+
+
+Start of TBssHeader   
+
+   2      64   FileDescriptor     TBssString  'BSS Specialty Devices, Inc.'
+  66      64   Filename           TBssString  Original filename if possible, no path
+ 130       2   FileNumber         U16     1 is first file of the day
+ 132       2   FileVersion,       TVer    This TBssHeader, TBssRec version - 1000 = 1.0.0
+ 134       2   SoftwareVersion    TVer    version collected with
+ 136       2   HardwareVersion    TVer    Wiring version. Zero if unknown
+ 138       4   AntennaHt          float   m above mean water level
+ 142       4   Keel               float   m keel alarm level below water line. Zero = not available
+ 146       8   Spdos              double  m/sec
+ 154       2   Year               U16
+ 156       1   Month              U8
+ 157       1   Day                U8
+ 158       8   TimeTag            double  days since 12/30/1899 12:00 am
+ 166       1   HasRtk             U8
+ 167       1   TransCount         U8      number of transducers used in this file.
+ 168       1   PrimaryTrans       U8      matches TBssRec.Transducer of primary
+ 169       1   SecondaryTrans     U8      > Primary, else zero if not present
+ 170       1   DisplayUnits       U8      unFEET = 0, unMETERS, unFATHOMS
+ 171       1   DisplaySpdosUnits  U8      unFEET = 0, unMETERS
+ 172       4   CommonRate         U32     zero if any rate is different
+ 176      20   Rates              array 1..5 of U32 high kHz(1) to low(TransCount)
+ 196      20   kHz                array 1..5 of float
+ 216      64   Comment            TBssString
+ 280      32   LLExtent           TXYRect Latitude/Longitude limits in file
+ 312      32   XYExtent           TXYRect X/Y limits in file
+ 344       4   MaxTraceNum        U32     TBssRec.TraceNum of last record
+ 348       4   MaxDisplayable     float   max of Draft + NumPoints to source meters.
+ 352       4   MaxXdRange         float   max of TBssRec.XdRange
+ 356       4   MaxRange           float   max of XdRange + Draft in file. Zero if not measured
+ 360       8   MaxTimeTag         double  TimeTag of last record
+ 368       1   Correlated         bool    
+ 369       1   SourceProgram      U8      spUnknown = 0, spSmartSurvey = 1, spSdiDepth = 2, spOther = 3
+ 370       2   Reserved           array 0..1 of U8 set to zero
+
+End of TBssHeader
+
+The TBssHeader record implemented in pascal:
+
+  TBssHeader = packed record
+    FileDescriptor,    'BSS Specialty Devices, Inc.'
+    Filename: TBssString; { Original filename if possible }
+    FileNumber: Word;  { 1 is first file of the day }
+    FileVersion,       { This TBssHeader, TBssRec version }
+    SoftwareVersion,   { version collected with }
+    HardwareVersion: Word; { wiring version }
+    AntennaHt,         { m above water }
+    Keel: Single;      { m below water keel alarm was set at. Zero = not available }
+    Spdos: Double;     { m/sec }
+    Year: Word;        { all dates, times are when collected from hardware }
+    Month,
+    Day: Byte;
+    TimeTag: TDateTime;{ days since 12/30/1899 12:00 am }
+    HasRtk: ByteBool;
+    TransCount,        { number of transducers used in this file.  }
+    PrimaryTrans,      { matches TBssRec.Transducer of primary }
+    SecondaryTrans,    { > Primary, else zero if not present }
+    DisplayUnits,      { unFEET = 0, unMETERS, unFATHOMS }
+    DisplaySpdosUnits: Byte; { unFEET = 0, unMETERS }
+    CommonRate: LongWord;{ zero if any rate is different }
+    Rates: packed array [1 .. 5] of LongWord; { high kHz(1) to low(TransCount) }
+    kHz: packed array [1 .. 5] of Single;
+    Comment: TBssString;
+    //-----These are updated when file closed.
+    LLExtent, XYExtent: TXYRect; //XYExtent has limits of TBssRec.XY
+    MaxTraceNum: LongWord; // TBssRec.TraceNum of last record
+    MaxDisplayable, //max of Draft + NumPoints to source meters.
+    MaxXdRange,
+    MaxRange: Single; //Maximum XdRange + Draft in file. Zero if not measured
+    MaxTimeTag: TDateTime; //TimeTag of last record
+    //-----
+    Correlated: ByteBool;
+    SourceProgram: Byte;
+    Reserved: packed array [0..1] of Byte;
+  end;
+
+                                        
+Header followed by blocks of Preamble, TBssRec and data until end of file.  These blocks are also sent out a local
+port at collection and can be sent when played back.
+
+Udp data format sent by SdiDepth/SmartSurvey version 6.1.1
+
+Bss file version 1.0 record format sent with each primary and secondary ping to local address 127.0.0.1
+with Udp protocol, default Udp port 2112 with local port 1000 using a buffer size of 1514.
+
+
+Start of file, Udp data:
+ 
+Offset | Size | Identifier    | Type    | Comment
+bytes  | bytes|               |         |
+
+Preamble
+
+   0      2    BssSize            U16     The size of the following record. For version 1.0 = 216
+
+
+Start of TBssRec   
+
+   2      4    PrevRecordSize     U32     Start of previous BssRec to this start in bytes. First record = 0
+   6      4    NumPoints          U32     # points in data array. Udp, writes limited to 32768. (play reads 65536)
+
+  10      8    TimeTag            double  Ping T-zero in days
+
+  18      4    TraceNum           U32     Increments starting with 1 in each file
+  22      4    Rate               U32     A/D samples per second. Changes to keep NumPoints within limit.
+
+  26      1    Transducer         U8      1..5 in order of frequency (high to low)
+  27      1    BiPolar            bool    if bipolar, values are signed 2's complement; vs unipolar, unsigned.
+  28      1    Sats               S8      Satellites visible or used depending on source. Invalid is -1
+  29      1    HprStatus          u8      Status char from mru. Space = none.
+  30      4    Heave              float   m
+
+  34      4    Pitch              float   -90 to 90 degrees, bow up is positive
+  38      4    Roll               float   -180 to 180 degrees, port up is positive
+
+  42      4    Heading            float   0 to <360 degrees
+  46      4    Course             float   0 to <360 degrees. <0 is invalid
+
+  50      4    kHz                float   actual Xducer transmit pulse rate used
+  54      4    Draft              float   m source below mean water level
+
+  58      4    Tide               float   m mean water level above geoid
+  62      4    AntennaEl          float   m above geoid
+
+  66      4    Blanking           float   m search for bottom starts after this distance from Xducer
+  70      4    WindowMin          float   m below mean water level. Top of operator's view
+
+  74      4    WindowMax          float   m below mean water level. Bottom of operator's view
+  78      4    XdRange            float   m Convenient current max transducer range used for display. NumPoints range - 1 m
+
+  82     20    DepthBT            array 0..4 of float in meters below transducer. Digitized depths. DepthBT[0] is primary,
+                                      DepthBT[1] is secondary. Others may be any digitized lines. 0 is unused, < zero is invalid.
+ 102      4    Volts              float   A/D range is 0..Volts or -Volts..+Volts if Bipolar
+
+ 106      8    Longitude          double  longitude degrees, as received from Hypack. Else Wgs84 degrees
+ 114      8    Latitude           double  Latitude degrees, as received from Hypack. Else Wgs84 degrees
+
+ 122      8    X                  double  Hypack state plane/other, else simplified Utm Wgs84 meters, non-polar, all in same zone
+ 130      8    Y                  double  Hypack state plane/other, else simplified Utm Wgs84 meters, non-polar, all in same zone
+
+ 138      4    HDop               float   m Horizontal Dilution of Precision. Invalid is -1.0
+ 142      1    Cycles             U8      0 means T-zero pulse trigger used: number of cycles is hardware dependent.
+ 143      1    Power              S8      0..3 or 0..7 depending on hardware. Invalid is -1
+ 144      1    Gain               S8      0..3 Invalid is -1. 200 kHz does not use gain.
+ 145      1    GpsMode            S8      UNK=-2,NOGPS,NOTAVAIL,SINGLE,DIFF,HAVE,RTKFIX,RTKFLOAT,DEADRECK,RT20,RT2,WAAS
+
+ 146     64    Comment            string  64 bytes of null terminated Unicode 1.0. This is UCS-2LE or UTF-16LE without surrogates.
+                                          
+ 210      1    Select             u8      1 = this is the selected high frequency record, 2 = low frequency, 0 = neither    
+ 211      1    Channel            u8      A/D channel 0..4
+ 212      6    Reserved           array 0..5 of Byte set to zeros
+
+End of TBssRec
+
+A/d data record.  Size is NumPoints * 2 bytes, never > 65536 bytes in writes and Udp. If BiPolar is true = S16, false = U16
+
+ 218      2    data[0]            16      T-zero
+ 220      2    data[1]            16
+      .
+      .
+      .
+ 216+2N   2    data[NumPoints-1]  16
+
+End of a/d data record
+
+End of file, Udp data.
+
+
+The TBssRec record implemented in pascal:
+
+  TBssRec = packed record { 216 bytes }
+    PrevRecordSize,     { Start of previous BssRec to this start in bytes. First record = 0 }
+
+    NumPoints: LongWord;{ # points stored.  from XdRange + 1 m ( 2 m before ver 3.2 }
+
+    TimeTag: TDateTime;{ Ping T-zero in days since midnight 12/30/1899 local time.
+                         Fraction is part of a day since midnight }
+    TraceNum,          { starts with 1 in each file }
+    Rate: LongWord;    { A/D samples per second }
+
+    Transducer: Byte;  { 1..5 in order of frequency (high to low) }
+    BiPolar: ByteBool; { if bipolar, values are signed 2's complement; vs unipolar, unsigned. }
+    Sats: Byte;        { Satellites visible or used depending on source. Invalid is $FF }
+    HprStatus: AnsiChar; { Tss quality chars 'u', 'U', 'g', 'G' etc. ' ' for none }
+    Heave,             { m }
+
+    Pitch,             { -90 to 90 degrees, bow up is positive }
+    Roll,              { -180 to 180 degrees, port up is positive }
+
+    Heading,           { 0 to <360 degrees, true north }
+    Course,            { 0 to <360 degrees, true north. <0 is invalid }
+
+    kHz,               { actual transmit pulse rate used }
+    Draft,             { m source below mean water level }
+
+    Tide,              { m mean water level above geoid }
+    AntennaEl,         { m above geoid }
+
+    Blanking,          { m search for bottom starts after this distance from Xducer }
+    WindowMin,         { m below mean water level. For WindowMin, WindowMax, }
+
+    WindowMax,         { 'Range' and 'Depth': array index = 2 * Rate(X - Draft + Heave)/Spdos }
+    XdRange: Single;   { Convenient current max transducer range used for display. NumPoints range is + 1 m }
+
+    DepthBT: packed array[0..4] of Single; { in meters below transducer. 0.0: unused, <0: invalid }
+                       { DepthBT[0] is primary, Depth[1] is secondary. Others may be any digitized lines.  }
+    Volts: Single;     { A/D range is 0..Volts or -Volts..+Volts if Bipolar }
+
+    LatLon: TLLCoord;  { Latitude, longitude degrees, as received from Hypack. Else Wgs84 degrees }
+
+    XY: TXYCoord;      { As received from Hypack, otherwise simplified Utm Wgs84 meters, non-polar, all in same zone }
+
+    HDop: Single;      { m Horizontal Dilution of Precision. Invalid is -1.0 }
+    Cycles,            { 0 means T-zero pulse used; number of cycles is hardware dependent. }
+    Power,             { 0..3 or 0..7 depending on hardware. Invalid is $FF }
+    Gain: Byte;        { 0..3 Invalid is $FF. 200 kHz does not use gain. }
+    GpsMode: Shortint; { UNK=-2,NOGPS,NOTAVAIL,SINGLE,DIFF,HAVE,RTKBEST,RTKGOOD,DEADRECK,RT20,RT2,WAAS}
+
+    Comment: TBssString; { 64 bytes of null terminated Unicode 1.0. This is UCS-2LE or UTF-16LE without surrogates }
+
+    Select,            { 1=Primary, 2=Secondary, 0=neither. PrimaryTrans or SecondaryTrans = Transducer overrides }
+    Channel: Byte;     { 0..4 }
+    Reserved: array[0..5] of Byte;
+  end;
+
+
+Larry Higley
+lhigley@specialtydevices.com
+972 603-8334
+
