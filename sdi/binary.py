@@ -327,7 +327,6 @@ class Dataset(object):
 
         return good_x, good_y
 
-
     def parse(self, file_format='bin'):
         """Parse the entire file and initialize attributes"""
         with open(self.filepath, 'rb') as f:
@@ -346,7 +345,8 @@ class Dataset(object):
                 self.survey_line_number[:6], '%y%m%d').date()
             self.parse_records(fid, data_length)
         elif file_format == 'bss':
-            header = self.parser_bss_file_header(fid)
+            header = self.parse_bss_file_header(fid)
+            self.file_header = header
             self.version = header['version']
             self.survey_line_number = header['filename']
             self.parse_bss_records()
@@ -398,12 +398,14 @@ class Dataset(object):
 
         f.seek(66)
 
-        filename = struct.unpack('<64s', f.read(64)).decode('utf16')
-        file_version = struct.unpack('<H', f.read(2))
-        file_number = struct.unpack('<H', f.read(2))
+        filename = struct.unpack('<64s', f.read(64))[0].decode('utf16')
+        file_version = struct.unpack('<H', f.read(2))[0]
+        file_number = struct.unpack('<H', f.read(2))[0]
         
+        f.seek(146)
+        self.spdos = struct.unpack('<d', f.read(8))[0]
         f.seek(170)
-        self.units = struct.unpack('<B', f.read(1))
+        self.units = struct.unpack('<B', f.read(1))[0]
 
         return {
             'filename': filename,
@@ -593,13 +595,14 @@ class Dataset(object):
             self.raw_trace = raw_trace
             self.intensity = intensity
 
-        # self.trace_metadata = self.process_raw_trace(raw_trace, rec_structs)
+        self.trace_metadata = self.process_raw_trace(
+            raw_trace, rec_structs, file_format='bss')
         self.intensities = trace_intensities
         self.raw_trace = raw_trace
         self.intensity_image = self._normalize_scale(
             _fill_nans(trace_intensities))
 
-    def process_raw_trace(self, raw_trace, all_structs):
+    def process_raw_trace(self, raw_trace, all_structs, file_format='bin'):
         """Clean up raw trace data - convert lists to appropriately typed
         np.arrays of uniform units (meters for distance values)
         """
@@ -620,44 +623,51 @@ class Dataset(object):
                 'This sdi file contains unsupported units.',
             )
 
-        convert_to_meters = self.convert_to_meters_array(units)
-        keys_to_convert = [
-            'min_window',
-            'max_window',
-            'display_range',
-        ]
+        if file_format == 'bin':
+            convert_to_meters = self.convert_to_meters_array(units)
+            keys_to_convert = [
+                'min_window',
+                'max_window',
+                'display_range',
+            ]
 
-        for raw_key in ['min_window10', 'max_window10']:
-            array = processed.pop(raw_key)
-            new_key = raw_key[:-2]
-            processed[new_key] = array / 10.
+            for raw_key in ['min_window10', 'max_window10']:
+                array = processed.pop(raw_key)
+                new_key = raw_key[:-2]
+                processed[new_key] = array / 10.
 
-        for raw_key in ['draft100', 'tide100']:
-            array = processed.pop(raw_key)
-            new_key = raw_key[:-3]
-            if new_key not in raw_trace.keys():
-                keys_to_convert.append(new_key)
-                processed[new_key] = array / 100.
+            for raw_key in ['draft100', 'tide100']:
+                array = processed.pop(raw_key)
+                new_key = raw_key[:-3]
+                if new_key not in raw_trace.keys():
+                    keys_to_convert.append(new_key)
+                    processed[new_key] = array / 100.
 
-        for key in keys_to_convert:
-            processed[key] = processed[key] * convert_to_meters
+            for key in keys_to_convert:
+                processed[key] = processed[key] * convert_to_meters
 
-        # convert heave to meters
-        heave_cm = processed.pop('heave_cm')
-        processed['heave'] = heave_cm * 100.0
+            # convert heave to meters
+            heave_cm = processed.pop('heave_cm')
+            processed['heave'] = heave_cm * 100.0
 
-        # convert speed of sound to meters
-        convert_spdos = self.convert_to_meters_array(processed['spdos_units'])
-        processed['spdos'] = processed['spdos'] * convert_spdos
+            # convert speed of sound to meters
+            convert_spdos = self.convert_to_meters_array(processed['spdos_units'])
+            processed['spdos'] = processed['spdos'] * convert_spdos
 
-        # replace centiseconds with microseconds
-        processed['microsecond'] = processed['centisecond'].astype(np.uint32) * 10000
-        processed.pop('centisecond')
+            # replace centiseconds with microseconds
+            processed['microsecond'] = processed['centisecond'].astype(np.uint32) * 10000
+            processed.pop('centisecond')
 
+            x_col = 'easting'
+            y_col = 'northing'
+        else:
+            processed['spdos'] = np.ones_like(processed['longitude']) * self.spdos
+            x_col = 'x'
+            y_col = 'y'
         # calculate pixel resolution
         processed['pixel_resolution'] = (processed['spdos'] * 1.0) / (2 * processed['rate'])
 
-        for x_key, y_key in [('longitude', 'latitude'), ('easting', 'northing')]:
+        for x_key, y_key in [('longitude', 'latitude'), (x_col, y_col)]:
             if x_key in processed and y_key in processed:
                 # filter out bad values
                 x, y = self.filter_x_and_y(
