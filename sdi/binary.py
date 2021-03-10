@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 import itertools
 import struct
 from StringIO import StringIO
@@ -7,9 +7,9 @@ import warnings
 import numpy as np
 
 
-def read(filepath, separate=True):
+def read(filepath, separate=True, file_format='bin'):
     dataset = Dataset(filepath)
-    return dataset.as_dict(separate=separate)
+    return dataset.as_dict(separate=separate, file_format=file_format)
 
 
 class Dataset(object):
@@ -17,7 +17,7 @@ class Dataset(object):
         self.filepath = filepath
         self.parsed = False
 
-    def as_dict(self, separate=True):
+    def as_dict(self, separate=True, file_format='bin'):
         """Returns the SDI data as a dict. Data is collected and stored in the
         binary file as a sequence of traces, cycling between sampling
         frequencies. Each vertical column of intensity data is a trace and has
@@ -217,7 +217,7 @@ class Dataset(object):
                 Bipolar bit in Options. Only available in versions >= '4.0'
         """
         if not self.parsed:
-            self.parse()
+            self.parse(file_format=file_format)
 
         d = {
             'date': self.date,
@@ -349,6 +349,8 @@ class Dataset(object):
             self.file_header = header
             self.version = header['version']
             self.survey_line_number = header['filename']
+            self.date = datetime.strptime(
+                self.survey_line_number[:6], '%y%m%d').date()            
             self.parse_bss_records()
 
         self.frequencies = self.assemble_frequencies()
@@ -411,6 +413,7 @@ class Dataset(object):
             'filename': filename,
             'version': file_version,
             'file_number': file_number,
+            'date': date.today(),
         }
 
     def parse_records(self, fid, data_length):
@@ -672,6 +675,10 @@ class Dataset(object):
                 # filter out bad values
                 x, y = self.filter_x_and_y(
                     processed[x_key], processed[y_key])
+                if x_key == 'x':
+                    x_key = 'easting'
+                if y_key == 'y':
+                    y_key = 'northing'
 
                 processed[x_key] = x
                 processed[y_key] = y
@@ -713,8 +720,8 @@ class Dataset(object):
                 end;
             end;
         """
-        if self.version >= '5.0':
-            return np.abs(intensity_image - np.float64(32768))/np.float64(32768)
+        if (self.version >= '5.0' or self.version == 1000):
+            return np.abs(intensity_image + np.float(32768))/np.float64(65535)
         else:
             index_200khz = self.raw_trace['transducer']==1
             scaled_image = np.zeros_like(intensity_image)
