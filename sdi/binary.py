@@ -305,8 +305,17 @@ class Dataset(object):
         x = original_x.copy()[dedup_idx]
         y = original_y.copy()[dedup_idx]
 
-        x_out = np.abs(x - np.median(x)) > 5 * x.std()
-        y_out = np.abs(y - np.median(y)) > 5 * y.std()
+        if (x.max() - x.min()) <= 200:
+            x_std_factor = 7
+        else:
+            x_std_factor = 5
+
+        if (y.max() - y.min()) <= 200:
+            y_std_factor = 7
+        else:
+            y_std_factor = 5
+        x_out = np.abs(x - np.median(x)) > x_std_factor * x.std()
+        y_out = np.abs(y - np.median(y)) > y_std_factor * y.std()
 
         out_mask = x_out + y_out
 
