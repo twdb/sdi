@@ -347,7 +347,7 @@ class Dataset(object):
         if file_format == 'bin':
             header = self.parse_file_header(fid)
             self.version = header['version']
-            self.survey_line_number = header['filename']
+            self.survey_line_number = header['filename'].decode("UTF-8")
             header = self.parse_file_header(fid)
             self.resolution_cm = header['resolution_cm']
             self.date = datetime.strptime(
@@ -729,7 +729,7 @@ class Dataset(object):
                 end;
             end;
         """
-        if (self.version >= 5.0 or self.version == 1000):
+        if (float(self.version) >= 5.0 or self.version == 1000):
             return np.abs(intensity_image + np.float(32768))/np.float64(65535)
         else:
             index_200khz = self.raw_trace['transducer']==1
