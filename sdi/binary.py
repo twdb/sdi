@@ -1,7 +1,7 @@
 from datetime import datetime, date
 import itertools
 import struct
-from io import StringIO
+from io import BytesIO
 import warnings
 
 import numpy as np
@@ -230,7 +230,7 @@ class Dataset(object):
             d['frequencies'] = self.frequencies
         else:
             d['intensity'] = self.intensity_image
-            for key, array in self.trace_metadata.iteritems():
+            for key, array in self.trace_metadata.items():
                 d[key] = array
         return d
 
@@ -255,7 +255,7 @@ class Dataset(object):
             else:
                 khz = unique_kHzs[0]
 
-            for key, array in self.trace_metadata.iteritems():
+            for key, array in self.trace_metadata.items():
                 freq_dict[key] = array[freq_mask]
 
             freq_dict['intensity'] = self.intensity_image[freq_mask]
@@ -281,7 +281,7 @@ class Dataset(object):
         }
         convert_to_meters = np.zeros(len(units), dtype=np.float)
 
-        for unit_value, conversion_factor in units_factors.iteritems():
+        for unit_value, conversion_factor in units_factors.items():
             convert_to_meters[units == unit_value] = conversion_factor
 
         is_zero = (convert_to_meters == 0)
@@ -341,7 +341,7 @@ class Dataset(object):
         with open(self.filepath, 'rb') as f:
             data = f.read()
 
-        fid = StringIO(data)
+        fid = BytesIO(data)
         data_length = len(data)
 
         if file_format == 'bin':
@@ -502,7 +502,7 @@ class Dataset(object):
         # post-event
         while npos < data_length:
             pre_record = struct.unpack(pre_fmt, fid.read(pre_size))
-            pre_dict = dict(zip(pre_names, pre_record))
+            pre_dict = dict(list(zip(pre_names, pre_record)))
 
             size = pre_dict['event_len']
             if size > 0:
@@ -512,9 +512,9 @@ class Dataset(object):
             raw_trace['event'].append(event)
 
             post_record = struct.unpack(post_fmt, fid.read(post_size))
-            post_dict = dict(zip(post_names, post_record))
+            post_dict = dict(list(zip(post_names, post_record)))
 
-            for key, value in itertools.chain(pre_dict.iteritems(), post_dict.iteritems()):
+            for key, value in itertools.chain(iter(pre_dict.items()), iter(post_dict.items())):
                 raw_trace[key].append(value)
 
             fid.seek(npos + pre_dict['offset'] + 2)
@@ -532,7 +532,7 @@ class Dataset(object):
         with open(self.filepath, 'rb') as f:
             data = f.read()
 
-        fid = StringIO(data)
+        fid = BytesIO(data)
         data_length = len(data)
         self.version = 1000
 
@@ -593,8 +593,8 @@ class Dataset(object):
         fid.seek(npos)
         while npos < data_length:
             record = struct.unpack(fmt, fid.read(size))
-            record_dict = dict(zip(names, record))
-            for key, value in record_dict.iteritems():
+            record_dict = dict(list(zip(names, record)))
+            for key, value in record_dict.items():
                 raw_trace[key].append(value)
 
             fid.seek(int(fid.tell()) + 6)
@@ -651,7 +651,7 @@ class Dataset(object):
             for raw_key in ['draft100', 'tide100']:
                 array = processed.pop(raw_key)
                 new_key = raw_key[:-3]
-                if new_key not in raw_trace.keys():
+                if new_key not in list(raw_trace.keys()):
                     keys_to_convert.append(new_key)
                     processed[new_key] = array / 100.
 
@@ -729,7 +729,7 @@ class Dataset(object):
                 end;
             end;
         """
-        if (self.version >= '5.0' or self.version == 1000):
+        if (self.version >= 5.0 or self.version == 1000):
             return np.abs(intensity_image + np.float(32768))/np.float64(65535)
         else:
             index_200khz = self.raw_trace['transducer']==1
