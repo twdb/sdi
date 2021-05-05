@@ -1,7 +1,7 @@
 from datetime import datetime, date
 import itertools
 import struct
-from StringIO import StringIO
+from io import StringIO
 import warnings
 
 import numpy as np
