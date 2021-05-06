@@ -226,6 +226,13 @@ class Dataset(object):
             'survey_line_number': self.survey_line_number,
         }
 
+        if file_format == 'bss':
+            d.update({
+                'start_datetime': self.start_datetime,
+                'end_datetime': self.end_datetime,
+                'depth_r1': self.trace_metadata.pop('depth_r1') + self.trace_metadata['draft']
+            })
+
         if separate:
             d['frequencies'] = self.frequencies
         else:
@@ -415,6 +422,11 @@ class Dataset(object):
         
         f.seek(146)
         self.spdos = struct.unpack('<d', f.read(8))[0]
+
+        f.seek(158)
+        self.start_datetime = struct.unpack('<d', f.read(8))[0]
+        f.seek(360)
+        self.end_datetime = struct.unpack('<d', f.read(8))[0]
         f.seek(170)
         self.units = struct.unpack('<B', f.read(1))[0]
 
